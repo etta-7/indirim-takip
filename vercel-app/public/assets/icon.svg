@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="0ndirim Takip">
+  <rect width="512" height="512" rx="112" fill="#0f4c3a"/>
+  <path fill="#fff" d="M148 168h216v48H148zm0 96h216v48H148zm0 96h144v48H148z"/>
+  <circle cx="352" cy="352" r="72" fill="#7cd4b8"/>
+  <text x="352" y="374" text-anchor="middle" font-family="system-ui,sans-serif" font-size="72" font-weight="700" fill="#0f4c3a">%</text>
+</svg>

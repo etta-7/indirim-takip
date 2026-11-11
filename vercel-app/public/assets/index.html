@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f4c3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="İndirim Takip" />
+    <title>İndirim Takip</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/assets/icon.svg" />
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell" hidden aria-live="polite">
+      <header class="top-bar">
+        <div class="top-bar__titles">
+          <h1 class="top-bar__title">İndirim Takip</h1>
+          <p class="top-bar__sub" id="summary-text">Yükleniyor…</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--primary btn--check"
+          id="btn-check"
+        >
+          Şimdi kontrol et
+        </button>
+      </header>
+
+      <section class="panel panel--add" aria-labelledby="add-heading">
+        <h2 id="add-heading" class="panel__heading">Ürün ekle</h2>
+        <form id="form-add" class="form-add" autocomplete="off">
+          <label class="field">
+            <span class="field__label">Ürün linki</span>
+            <input
+              class="field__input"
+              type="url"
+              name="url"
+              inputmode="url"
+              placeholder="https://www.trendyol.com/…"
+              required
+            />
+          </label>
+          <label class="field">
+            <span class="field__label">Hedef (isteğe bağlı)</span>
+            <input
+              class="field__input"
+              type="text"
+              name="target_text"
+              inputmode="decimal"
+              placeholder="ör. 2500, 10% veya 2500 10%"
+            />
+            <span class="field__hint">Bot ile aynı kurallar: TL, yüzde veya ikisi</span>
+          </label>
+          <button type="submit" class="btn btn--secondary btn--block">
+            Listeye ekle
+          </button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="list-heading">
+        <div class="panel__row">
+          <h2 id="list-heading" class="panel__heading">Takip listesi</h2>
+          <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh">
+            Yenile
+          </button>
+        </div>
+        <ul id="product-list" class="product-list"></ul>
+        <p id="empty-state" class="empty-state" hidden>
+          Henüz ürün yok. Yukarıdan bir link ekleyin.
+        </p>
+      </section>
+
+      <footer class="foot">
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-settings">
+          Panel anahtarı
+        </button>
+      </footer>
+    </div>
+
+    <dialog id="dialog-token" class="dialog">
+      <form method="dialog" id="form-token" class="dialog__body">
+        <h2 class="dialog__title">Panel anahtarı</h2>
+        <p class="dialog__text">
+          <code>DASHBOARD_TOKEN</code> değerini girin. Bu cihazda saklanır; yalnızca
+          sizin kullanımınız içindir.
+        </p>
+        <label class="field">
+          <span class="field__label">Anahtar</span>
+          <input
+            class="field__input"
+            type="password"
+            name="token"
+            id="input-token"
+            autocomplete="off"
+            required
+          />
+        </label>
+        <div class="dialog__actions">
+          <button type="submit" class="btn btn--primary btn--block">
+            Kaydet ve devam et
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>
