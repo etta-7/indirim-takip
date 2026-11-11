@@ -5,7 +5,7 @@ import logging
 from telegram.ext import Application
 
 from config import load_settings
-from db import ProductRepository
+from db import ProductRepository, UserSessionRepository
 from price_checker import PriceChecker
 from telegram_handlers import build_handlers, scheduled_check
 
@@ -20,6 +20,7 @@ def main() -> None:
     settings = load_settings()
     repo = ProductRepository(settings.database_path)
     repo.init_db()
+    sessions = UserSessionRepository(settings.database_path)
 
     app = (
         Application.builder()
@@ -31,8 +32,9 @@ def main() -> None:
     app.bot_data["checker"] = checker
     app.bot_data["repo"] = repo
     app.bot_data["settings"] = settings
+    app.bot_data["sessions"] = sessions
 
-    for handler in build_handlers(settings, repo, checker):
+    for handler in build_handlers(settings, repo, checker, sessions):
         app.add_handler(handler)
 
     app.job_queue.run_repeating(
@@ -46,7 +48,7 @@ def main() -> None:
         "Bot başlıyor (kontrol aralığı: %s dk)",
         settings.check_interval_minutes,
     )
-    app.run_polling(allowed_updates=["message"])
+    app.run_polling(allowed_updates=["message", "callback_query"])
 
 
 if __name__ == "__main__":

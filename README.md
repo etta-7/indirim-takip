@@ -32,11 +32,34 @@ python main.py
 ## Telegram komutları
 
 - `/start` — yardım
-- `/add <url> <hedef_fiyat>` — ürün ekle
+- `/add <url> <hedef_fiyat>` — link ile ürün ekle
+- `/add <hedef_fiyat> <arama metni>` — URL olmadan isimle ekle (önce mağaza seçimi veya `/kategori`)
+- `/add <site> <hedef_fiyat> <arama metni>` — site + fiyat + arama (site: `trendyol`, `hepsiburada`, `akakce`, `cimri`)
+- `/ekle` — `/add` ile aynı
+- `/ara [site] <arama metni>` — arama; listeden ürün seçimi (inline düğmeler)
+- `/kategori` — varsayılan mağaza seçimi (Trendyol | Hepsiburada | Akakçe | Cimri)
 - `/list` — takip listesi
 - `/remove <id>` — sil
 - `/check` — anında kontrol
 - `/status` — özet
+
+### İsimle ekleme örnekleri
+
+```
+/kategori
+→ Trendyol seç
+
+/add 2500 ck erkek mont xl beden
+→ Arama sonuçlarından birini seç → hedef 2500 TL ile takibe alınır
+
+/add trendyol 2500 ck erkek mont xl
+→ Doğrudan Trendyol’da arar
+
+/ara hepsiburada ck erkek mont xl
+→ Sonuç listesi; ürün seçince hedef fiyat sorulur
+```
+
+Seçilen ürünün gerçek mağaza URL’si kaydedilir; periyodik fiyat kontrolü URL ile devam eder.
 
 ## Project sohbetinden / CLI ekleme
 
