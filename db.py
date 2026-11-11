@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS products (
     target_price REAL NOT NULL,
     last_price REAL,
     last_checked_at TEXT,
-    notify_cooldown_until TEXT
+    notify_cooldown_until TEXT,
+    target_drop_percent REAL,
+    baseline_price REAL
 );
 
 CREATE TABLE IF NOT EXISTS user_sessions (
@@ -34,6 +36,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     pending_title TEXT,
     search_results_json TEXT,
     awaiting_price INTEGER NOT NULL DEFAULT 0,
+    pending_target_drop_percent REAL,
     updated_at TEXT
 );
 """
@@ -49,6 +52,8 @@ class Product:
     last_price: float | None
     last_checked_at: str | None
     notify_cooldown_until: str | None
+    target_drop_percent: float | None
+    baseline_price: float | None
 
 
 class ProductRepository:
@@ -69,6 +74,19 @@ class ProductRepository:
     def init_db(self) -> None:
         with self._conn() as conn:
             conn.executescript(SCHEMA)
+            self._migrate(conn)
+
+    def _migrate(self, conn: sqlite3.Connection) -> None:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(products)")}
+        if "target_drop_percent" not in cols:
+            conn.execute("ALTER TABLE products ADD COLUMN target_drop_percent REAL")
+        if "baseline_price" not in cols:
+            conn.execute("ALTER TABLE products ADD COLUMN baseline_price REAL")
+        sess_cols = {row[1] for row in conn.execute("PRAGMA table_info(user_sessions)")}
+        if "pending_target_drop_percent" not in sess_cols:
+            conn.execute(
+                "ALTER TABLE user_sessions ADD COLUMN pending_target_drop_percent REAL"
+            )
 
     def _row_to_product(self, row: sqlite3.Row) -> Product:
         return Product(
@@ -80,16 +98,28 @@ class ProductRepository:
             last_price=row["last_price"],
             last_checked_at=row["last_checked_at"],
             notify_cooldown_until=row["notify_cooldown_until"],
+            target_drop_percent=row["target_drop_percent"],
+            baseline_price=row["baseline_price"],
         )
 
-    def add_product(self, url: str, site: str, target_price: float) -> Product:
+    def add_product(
+        self,
+        url: str,
+        site: str,
+        target_price: float,
+        *,
+        target_drop_percent: float | None = None,
+        baseline_price: float | None = None,
+    ) -> Product:
         with self._conn() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO products (url, site, target_price)
-                VALUES (?, ?, ?)
+                INSERT INTO products (
+                    url, site, target_price, target_drop_percent, baseline_price
+                )
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (url, site, target_price),
+                (url, site, target_price, target_drop_percent, baseline_price),
             )
             row = conn.execute("SELECT * FROM products WHERE id = ?", (cur.lastrowid,)).fetchone()
         return self._row_to_product(row)
@@ -116,6 +146,7 @@ class ProductRepository:
         title: str | None,
         last_price: float,
         notify_cooldown_until: str | None = None,
+        baseline_price: float | None = None,
     ) -> None:
         now = utc_now_iso()
         with self._conn() as conn:
@@ -125,10 +156,18 @@ class ProductRepository:
                 SET title = COALESCE(?, title),
                     last_price = ?,
                     last_checked_at = ?,
-                    notify_cooldown_until = COALESCE(?, notify_cooldown_until)
+                    notify_cooldown_until = COALESCE(?, notify_cooldown_until),
+                    baseline_price = COALESCE(?, baseline_price)
                 WHERE id = ?
                 """,
-                (title, last_price, now, notify_cooldown_until, product_id),
+                (
+                    title,
+                    last_price,
+                    now,
+                    notify_cooldown_until,
+                    baseline_price,
+                    product_id,
+                ),
             )
 
     def count(self) -> int:
@@ -155,6 +194,7 @@ class UserSession:
     pending_title: str | None
     search_results: list[dict]
     awaiting_price: bool
+    pending_target_drop_percent: float | None
 
 
 class UserSessionRepository:
@@ -182,6 +222,7 @@ class UserSessionRepository:
                 pending_title=None,
                 search_results=[],
                 awaiting_price=False,
+                pending_target_drop_percent=None,
             )
         raw = row["search_results_json"]
         results = json.loads(raw) if raw else []
@@ -194,6 +235,7 @@ class UserSessionRepository:
             pending_title=row["pending_title"],
             search_results=results,
             awaiting_price=bool(row["awaiting_price"]),
+            pending_target_drop_percent=row["pending_target_drop_percent"],
         )
 
     def get(self, user_id: int) -> UserSession:
@@ -214,6 +256,7 @@ class UserSessionRepository:
         pending_title: str | None = None,
         search_results: list[dict] | None = None,
         awaiting_price: bool | None = None,
+        pending_target_drop_percent: float | None = None,
         clear_search: bool = False,
         clear_pending_product: bool = False,
     ) -> UserSession:
@@ -233,10 +276,13 @@ class UserSessionRepository:
             current.search_results = search_results
         if awaiting_price is not None:
             current.awaiting_price = awaiting_price
+        if pending_target_drop_percent is not None:
+            current.pending_target_drop_percent = pending_target_drop_percent
         if clear_search:
             current.search_results = []
             current.pending_query = None
             current.pending_target_price = None
+            current.pending_target_drop_percent = None
         if clear_pending_product:
             current.pending_url = None
             current.pending_title = None
@@ -247,8 +293,9 @@ class UserSessionRepository:
                 """
                 INSERT INTO user_sessions (
                     user_id, preferred_site, pending_query, pending_target_price,
-                    pending_url, pending_title, search_results_json, awaiting_price, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    pending_url, pending_title, search_results_json, awaiting_price,
+                    pending_target_drop_percent, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     preferred_site = excluded.preferred_site,
                     pending_query = excluded.pending_query,
@@ -257,6 +304,7 @@ class UserSessionRepository:
                     pending_title = excluded.pending_title,
                     search_results_json = excluded.search_results_json,
                     awaiting_price = excluded.awaiting_price,
+                    pending_target_drop_percent = excluded.pending_target_drop_percent,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -268,6 +316,7 @@ class UserSessionRepository:
                     current.pending_title,
                     json.dumps(current.search_results, ensure_ascii=False),
                     int(current.awaiting_price),
+                    current.pending_target_drop_percent,
                     now,
                 ),
             )
@@ -283,10 +332,12 @@ class UserSessionRepository:
         target_price: float | None,
         *,
         site: str | None = None,
+        target_drop_percent: float | None = None,
     ) -> UserSession:
         kwargs: dict = {
             "pending_query": query,
             "pending_target_price": target_price,
+            "pending_target_drop_percent": target_drop_percent,
         }
         if site is not None:
             kwargs["preferred_site"] = site
@@ -299,12 +350,14 @@ class UserSessionRepository:
         query: str,
         results: list[dict],
         target_price: float | None,
+        target_drop_percent: float | None = None,
     ) -> UserSession:
         return self._upsert(
             user_id,
             preferred_site=site,
             pending_query=query,
             pending_target_price=target_price,
+            pending_target_drop_percent=target_drop_percent,
             search_results=results,
         )
 
@@ -316,12 +369,14 @@ class UserSessionRepository:
         target_price: float | None,
         *,
         awaiting_price: bool,
+        target_drop_percent: float | None = None,
     ) -> UserSession:
         return self._upsert(
             user_id,
             pending_url=url,
             pending_title=title,
             pending_target_price=target_price,
+            pending_target_drop_percent=target_drop_percent,
             awaiting_price=awaiting_price,
             clear_search=True,
         )
@@ -334,6 +389,7 @@ class UserSessionRepository:
                 UPDATE user_sessions SET
                     pending_query = NULL,
                     pending_target_price = NULL,
+                    pending_target_drop_percent = NULL,
                     pending_url = NULL,
                     pending_title = NULL,
                     search_results_json = '[]',

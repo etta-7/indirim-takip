@@ -1,6 +1,6 @@
 # İndirim Takip Botu
 
-Trendyol, Hepsiburada, Akakçe ve Cimri ürün sayfalarındaki fiyatları periyodik kontrol eder; fiyat belirlediğiniz hedefin altına düştüğünde Telegram’a bildirim gönderir.
+Trendyol, Hepsiburada, Akakçe ve Cimri ürün sayfalarındaki fiyatları periyodik kontrol eder; **mutlak TL hedefinin** altına veya **yüzdelik düşüş** eşiğine ulaşıldığında Telegram’a bildirim gönderir.
 
 ## Gereksinimler
 
@@ -32,9 +32,9 @@ python main.py
 ## Telegram komutları
 
 - `/start` — yardım
-- `/add <url> <hedef_fiyat>` — link ile ürün ekle
-- `/add <hedef_fiyat> <arama metni>` — URL olmadan isimle ekle (önce mağaza seçimi veya `/kategori`)
-- `/add <site> <hedef_fiyat> <arama metni>` — site + fiyat + arama (site: `trendyol`, `hepsiburada`, `akakce`, `cimri`)
+- `/add <url> <hedef>` — link ile ürün ekle (`hedef`: TL, `10%` veya `2500 --percent 10`)
+- `/add <hedef> <arama metni>` — URL olmadan isimle ekle (önce mağaza seçimi veya `/kategori`)
+- `/add <site> <hedef> <arama metni>` — site + hedef + arama (site: `trendyol`, `hepsiburada`, `akakce`, `cimri`)
 - `/ekle` — `/add` ile aynı
 - `/ara [site] <arama metni>` — arama; listeden ürün seçimi (inline düğmeler)
 - `/kategori` — varsayılan mağaza seçimi (Trendyol | Hepsiburada | Akakçe | Cimri)
@@ -61,12 +61,19 @@ python main.py
 
 Seçilen ürünün gerçek mağaza URL’si kaydedilir; periyodik fiyat kontrolü URL ile devam eder.
 
+### Yüzdelik düşüş uyarısı
+
+- Örnek: `/add https://... 10%` veya `/add trendyol 15% mont araması`
+- Yüzde ile TL birlikte: `/add https://... 3000 --percent 10` (ikisi de tetiklenebilir)
+- **Baz fiyat:** İlk başarılı kontroldeki fiyat (arama sonucundan eklerken listedeki fiyat varsa o kullanılır). Yüzde bildirimi geldikten sonra baz, bildirilen fiyata güncellenir; bir sonraki uyarı için yeniden en az bu kadar düşüş gerekir.
+
 ## Project sohbetinden / CLI ekleme
 
 Sunucudaki veritabanına doğrudan ekleme:
 
 ```bash
 python scripts/add_product.py "https://www.trendyol.com/..." 1299.99
+python scripts/add_product.py "https://www.trendyol.com/..." --percent 10
 ```
 
 Project sohbetinde `ekle https://... 1299` yazdığınızda koordinatör bu komutu çalıştırabilir.
@@ -106,6 +113,10 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now indirim-takip
 ```
+
+## Veritabanı geçişi
+
+Bot `init_db()` çalıştığında SQLite tablosuna `target_drop_percent` ve `baseline_price` sütunları eklenir (mevcut kayıtlar etkilenmez).
 
 ## Test
 
