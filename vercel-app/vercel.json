@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/check-prices",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
