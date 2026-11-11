@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 # Register Telegram webhook for the Vercel deployment.
-# Usage: ./scripts/set-telegram-webhook.sh https://YOUR_DOMAIN.vercel.app
+#
+# Usage:
+#   export TELEGRAM_BOT_TOKEN='...'
+#   export VERCEL_URL='https://your-project.vercel.app'
+#   ./scripts/set-telegram-webhook.sh
+#
+# Or pass the base URL explicitly:
+#   ./scripts/set-telegram-webhook.sh https://your-project.vercel.app
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <vercel-app-base-url>"
+BASE_URL="${1:-${VERCEL_URL:-}}"
+if [[ -z "${BASE_URL}" ]]; then
+  echo "Usage: $0 [base-url]"
+  echo "  Or set VERCEL_URL (e.g. https://indirim-takip.vercel.app)"
   exit 1
 fi
 
-BASE_URL="${1%/}"
+BASE_URL="${BASE_URL%/}"
 WEBHOOK_URL="${BASE_URL}/api/telegram"
 
 if [[ -z "${TELEGRAM_BOT_TOKEN:-}" ]]; then
