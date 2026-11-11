@@ -14,7 +14,12 @@ from telegram.ext import (
     filters,
 )
 
-from alert_rules import NO_ABSOLUTE_TARGET, parse_percent_token, split_alert_args
+from alert_rules import (
+    NO_ABSOLUTE_TARGET,
+    normalize_alert_text,
+    parse_percent_token,
+    split_alert_args,
+)
 from config import Settings
 from db import ProductRepository, UserSessionRepository
 from price_checker import PriceChecker, format_percent, format_price
@@ -32,10 +37,6 @@ logger = logging.getLogger(__name__)
 
 URL_RE = re.compile(r"https?://\S+", re.I)
 PRICE_ONLY_RE = re.compile(r"^\s*[\d]+([.,]\d+)?\s*$")
-ALERT_INPUT_RE = re.compile(
-    r"^\s*([\d]+([.,]\d+)?\s*%?|(--percent\s+[\d]+([.,]\d+)?))\s*$",
-    re.I,
-)
 
 SITE_LABELS = {
     "trendyol": "Trendyol",
@@ -100,6 +101,7 @@ def _format_alert_summary(
 
 
 def _parse_price_message(text: str) -> tuple[float | None, float | None]:
+    text = normalize_alert_text(text)
     tokens, drop_pct = split_alert_args(text.split())
     target: float | None = None
     if tokens:
@@ -305,18 +307,29 @@ def build_handlers(
         joined = " ".join(raw_args)
 
         if URL_RE.search(joined):
-            if len(args) < 2:
-                await update.message.reply_text(
-                    "Kullanım: /add <url> <hedef> [ --percent N ]"
-                )
-                return
             url = next((a for a in args if URL_RE.match(a)), None)
             alert_args = [a for a in args if a != url]
             alert_args, url_pct = split_alert_args(alert_args)
             drop_pct = url_pct if url_pct is not None else trailing_pct
-            if not url or not alert_args:
+            if not url:
                 await update.message.reply_text(
                     "Kullanım: /add <url> <hedef> [ --percent N ]"
+                )
+                return
+            if not alert_args:
+                if drop_pct is None:
+                    await update.message.reply_text(
+                        "Kullanım: /add <url> <hedef> [ --percent N ]"
+                    )
+                    return
+                await _finalize_add(
+                    update,
+                    repo,
+                    sessions,
+                    user_id,
+                    url,
+                    NO_ABSOLUTE_TARGET,
+                    target_drop_percent=drop_pct,
                 )
                 return
             first = alert_args[0]
@@ -361,7 +374,15 @@ def build_handlers(
             sess = sessions.get(user_id)
             site = sess.preferred_site
         if not site:
-            sessions.set_pending_search(user_id, query, target)
+            pending_target = target
+            if pending_target is None and drop_pct is not None:
+                pending_target = NO_ABSOLUTE_TARGET
+            sessions.set_pending_search(
+                user_id,
+                query,
+                pending_target,
+                target_drop_percent=drop_pct,
+            )
             await update.message.reply_text(
                 "Mağaza seçin veya /kategori ile varsayılan ayarlayın:",
                 reply_markup=_site_keyboard("addsite"),
@@ -538,12 +559,10 @@ def build_handlers(
         if not sess.awaiting_price or not sess.pending_url:
             return
         text = (update.message.text or "").strip()
-        if not ALERT_INPUT_RE.match(text):
-            return
         target, drop_pct = _parse_price_message(text)
         if target is None and drop_pct is None:
             await update.message.reply_text(
-                "Geçersiz hedef. Örnek: 2500, 10% veya 2500 10%"
+                "Geçersiz hedef. Örnek: 2500, 10%, 5 % veya 2500 10%"
             )
             return
         if target is None:

@@ -5,9 +5,19 @@ from __future__ import annotations
 import re
 
 PERCENT_TOKEN_RE = re.compile(r"^(\d+(?:[.,]\d+)?)\s*%$", re.I)
+DIGIT_PERCENT_SPACED_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s+%")
+LEADING_PERCENT_RE = re.compile(r"%\s*(\d+(?:[.,]\d+)?)")
 
 # Yalnızca yüzde eşiği: mutlak TL kontrolü devre dışı
 NO_ABSOLUTE_TARGET = -1.0
+
+
+def normalize_alert_text(text: str) -> str:
+    """Telegram/hedef girişi: '5 %', '%5', tam genişlik % işaretini birleştirir."""
+    text = text.strip().replace("\uff05", "%")
+    text = LEADING_PERCENT_RE.sub(r"\1%", text)
+    text = DIGIT_PERCENT_SPACED_RE.sub(r"\1%", text)
+    return text
 
 
 def absolute_target_active(target_price: float) -> bool:

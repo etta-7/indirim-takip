@@ -7,11 +7,13 @@ import pytest
 
 from alert_rules import (
     NO_ABSOLUTE_TARGET,
+    normalize_alert_text,
     percent_drop_from_baseline,
     should_alert_absolute,
     should_alert_percent_drop,
     split_alert_args,
 )
+from telegram_handlers import _parse_price_message
 from db import Product, ProductRepository
 from price_checker import PriceChecker
 
@@ -41,6 +43,26 @@ def test_split_alert_args():
     rest2, pct2 = split_alert_args(["10%", "urun"])
     assert pct2 == 10
     assert rest2 == ["urun"]
+
+
+def test_normalize_alert_text():
+    assert normalize_alert_text("5 %") == "5%"
+    assert normalize_alert_text("%10") == "10%"
+    assert normalize_alert_text("5\uff05") == "5%"
+
+
+def test_parse_price_message():
+    assert _parse_price_message("5%") == (NO_ABSOLUTE_TARGET, 5.0)
+    assert _parse_price_message("5 %") == (NO_ABSOLUTE_TARGET, 5.0)
+    target, drop = _parse_price_message("2500 10%")
+    assert target == 2500.0
+    assert drop == 10.0
+
+
+def test_split_alert_args_url_only_percent():
+    rest, pct = split_alert_args(["https://x.com/p", "10%"])
+    assert pct == 10.0
+    assert rest == ["https://x.com/p"]
 
 
 @pytest.mark.asyncio
