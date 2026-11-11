@@ -121,7 +121,7 @@ export default function HomePage() {
       </dialog>
 
       <div id="toast" className="toast" role="status" hidden />
-      <Script src="/assets/app.js?v=3" strategy="afterInteractive" />
+      <Script src="/assets/app.js?v=4" strategy="afterInteractive" />
     </>
   );
 }

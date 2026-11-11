@@ -335,15 +335,18 @@ if (getToken()) {
   openTokenDialog();
 }
 
+const POLL_PRODUCTS_MS = 45_000;
+const POLL_STALE_CHECK_MS = 60_000;
+
 setInterval(() => {
   if (document.hidden || !getToken()) return;
   maybeAutoPriceCheck();
-}, 60_000);
+}, POLL_STALE_CHECK_MS);
 
 setInterval(() => {
   if (document.hidden || !getToken()) return;
   loadProducts().catch(() => {});
-}, 2 * 60_000);
+}, POLL_PRODUCTS_MS);
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && getToken()) {
