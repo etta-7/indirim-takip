@@ -14,9 +14,10 @@ from telegram.ext import (
     filters,
 )
 
+from alert_rules import NO_ABSOLUTE_TARGET, parse_percent_token, split_alert_args
 from config import Settings
 from db import ProductRepository, UserSessionRepository
-from price_checker import PriceChecker, format_price
+from price_checker import PriceChecker, format_percent, format_price
 from scrapers.base import detect_site
 from scrapers.search import (
     SEARCH_LIMIT,
@@ -31,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 URL_RE = re.compile(r"https?://\S+", re.I)
 PRICE_ONLY_RE = re.compile(r"^\s*[\d]+([.,]\d+)?\s*$")
+ALERT_INPUT_RE = re.compile(
+    r"^\s*([\d]+([.,]\d+)?\s*%?|(--percent\s+[\d]+([.,]\d+)?))\s*$",
+    re.I,
+)
 
 SITE_LABELS = {
     "trendyol": "Trendyol",
@@ -63,14 +68,55 @@ def _parse_site_and_rest(args: list[str]) -> tuple[str | None, list[str]]:
     return None, args
 
 
-def _parse_optional_price(args: list[str]) -> tuple[float | None, list[str]]:
+def _parse_optional_alert_target(
+    args: list[str],
+) -> tuple[float | None, float | None, list[str]]:
+    args, drop_pct = split_alert_args(args)
     if not args:
-        return None, []
+        return None, drop_pct, []
+    first = args[0]
+    inline_pct = parse_percent_token(first)
+    if inline_pct is not None:
+        return NO_ABSOLUTE_TARGET, drop_pct or inline_pct, args[1:]
     try:
-        value = float(args[0].replace(",", "."))
+        value = float(first.replace(",", "."))
     except ValueError:
-        return None, args
-    return value, args[1:]
+        return None, drop_pct, args
+    return value, drop_pct, args[1:]
+
+
+def _format_alert_summary(
+    target: float,
+    drop_pct: float | None,
+    *,
+    prefix: str = "Hedef",
+) -> str:
+    parts: list[str] = []
+    if target >= 0:
+        parts.append(f"{prefix}: {format_price(target)}")
+    if drop_pct is not None:
+        parts.append(f"Düşüş eşiği: {format_percent(drop_pct)}")
+    return " | ".join(parts) if parts else "Uyarı eşiği yok"
+
+
+def _parse_price_message(text: str) -> tuple[float | None, float | None]:
+    tokens, drop_pct = split_alert_args(text.split())
+    target: float | None = None
+    if tokens:
+        if parse_percent_token(tokens[0]) is not None:
+            target = NO_ABSOLUTE_TARGET
+        else:
+            try:
+                target = float(tokens[0].replace(",", "."))
+            except ValueError:
+                return None, None
+    if drop_pct is None and len(tokens) > 1:
+        drop_pct = parse_percent_token(tokens[1])
+    if target is None and drop_pct is None:
+        return None, None
+    if target is None and drop_pct is not None:
+        target = NO_ABSOLUTE_TARGET
+    return target, drop_pct
 
 
 def _results_to_dict(results: list[SearchResult]) -> list[dict]:
@@ -96,7 +142,14 @@ async def _finalize_add(
     target: float,
     *,
     title_hint: str | None = None,
+    target_drop_percent: float | None = None,
+    baseline_price: float | None = None,
 ) -> None:
+    if target < 0 and target_drop_percent is None:
+        await update.effective_message.reply_text(
+            "En az bir uyarı eşiği gerekli (TL hedefi veya yüzde, örn. 10%)."
+        )
+        return
     site = detect_site(url)
     if site == "unknown":
         await update.effective_message.reply_text(
@@ -104,7 +157,13 @@ async def _finalize_add(
         )
         return
     try:
-        product = repo.add_product(url, site, target)
+        product = repo.add_product(
+            url,
+            site,
+            target,
+            target_drop_percent=target_drop_percent,
+            baseline_price=baseline_price,
+        )
     except Exception:
         await update.effective_message.reply_text(
             "Bu URL zaten listede veya kayıt başarısız."
@@ -113,7 +172,8 @@ async def _finalize_add(
     sessions.clear_after_add(user_id)
     name = title_hint or url
     await update.effective_message.reply_text(
-        f"Eklendi #{product.id} ({site}) {name[:50]}\nHedef: {format_price(target)}"
+        f"Eklendi #{product.id} ({site}) {name[:50]}\n"
+        f"{_format_alert_summary(target, target_drop_percent)}"
     )
 
 
@@ -125,6 +185,7 @@ async def _run_search_flow(
     site: str,
     query: str,
     target_price: float | None,
+    target_drop_percent: float | None = None,
 ) -> None:
     await update.effective_message.reply_text(f"{SITE_LABELS[site]} aranıyor: {query}…")
     try:
@@ -139,7 +200,9 @@ async def _run_search_flow(
         return
 
     payload = _results_to_dict(results[:SEARCH_LIMIT])
-    sessions.store_search_results(user_id, site, query, payload, target_price)
+    sessions.store_search_results(
+        user_id, site, query, payload, target_price, target_drop_percent
+    )
 
     lines = [_format_result_line(i, item) for i, item in enumerate(payload)]
     keyboard = InlineKeyboardMarkup(
@@ -154,10 +217,13 @@ async def _run_search_flow(
         ]
     )
     hint = ""
-    if target_price is not None:
-        hint = f"\n\nHedef fiyat: {format_price(target_price)} (ürün seçince eklenecek)"
+    if target_price is not None or target_drop_percent is not None:
+        hint = (
+            f"\n\n{_format_alert_summary(target_price or NO_ABSOLUTE_TARGET, target_drop_percent)} "
+            "(ürün seçince eklenecek)"
+        )
     else:
-        hint = "\n\nÜrün seçin; hedef fiyat yoksa sorulacak."
+        hint = "\n\nÜrün seçin; hedef yoksa TL veya yüzde (ör. 10%) sorulacak."
     await update.effective_message.reply_text(
         f"Sonuçlar ({SITE_LABELS[site]}):\n\n" + "\n\n".join(lines) + hint,
         reply_markup=keyboard,
@@ -186,9 +252,9 @@ def build_handlers(
             return
         await update.message.reply_text(
             "İndirim takip botu\n\n"
-            "/add <url> <hedef_fiyat> — link ile ekle\n"
-            "/add <hedef_fiyat> <arama> — isimle ekle\n"
-            "/add <site> <hedef_fiyat> <arama> — site + isim (ör. trendyol)\n"
+            "/add <url> <hedef> — link ile ekle (hedef: TL, 10% veya --percent 10)\n"
+            "/add <hedef> <arama> — isimle ekle\n"
+            "/add <site> <hedef> <arama> — site + isim (ör. trendyol)\n"
             "/ekle — /add ile aynı\n"
             "/ara [site] <arama> — arama (site yoksa /kategori)\n"
             "/kategori — varsayılan mağaza seç\n"
@@ -234,35 +300,61 @@ def build_handlers(
         if await unauthorized_reply(update):
             return
         user_id = update.effective_user.id
-        args = context.args or []
-        joined = " ".join(args)
+        raw_args = context.args or []
+        args, trailing_pct = split_alert_args(raw_args)
+        joined = " ".join(raw_args)
 
         if URL_RE.search(joined):
             if len(args) < 2:
-                await update.message.reply_text("Kullanım: /add <url> <hedef_fiyat>")
+                await update.message.reply_text(
+                    "Kullanım: /add <url> <hedef> [ --percent N ]"
+                )
                 return
             url = next((a for a in args if URL_RE.match(a)), None)
-            price_args = [a for a in args if a != url]
-            if not url or not price_args:
-                await update.message.reply_text("Kullanım: /add <url> <hedef_fiyat>")
+            alert_args = [a for a in args if a != url]
+            alert_args, url_pct = split_alert_args(alert_args)
+            drop_pct = url_pct if url_pct is not None else trailing_pct
+            if not url or not alert_args:
+                await update.message.reply_text(
+                    "Kullanım: /add <url> <hedef> [ --percent N ]"
+                )
                 return
-            try:
-                target = float(price_args[0].replace(",", "."))
-            except ValueError:
-                await update.message.reply_text("Geçersiz hedef fiyat.")
-                return
-            await _finalize_add(update, repo, sessions, user_id, url, target)
+            first = alert_args[0]
+            inline = parse_percent_token(first)
+            if inline is not None:
+                target = NO_ABSOLUTE_TARGET
+                if drop_pct is None:
+                    drop_pct = inline
+            else:
+                try:
+                    target = float(first.replace(",", "."))
+                except ValueError:
+                    await update.message.reply_text(
+                        "Geçersiz hedef. Örnek: 2500, 10% veya 2500 --percent 10"
+                    )
+                    return
+            await _finalize_add(
+                update,
+                repo,
+                sessions,
+                user_id,
+                url,
+                target,
+                target_drop_percent=drop_pct,
+            )
             return
 
         site, rest = _parse_site_and_rest(args)
-        target, rest = _parse_optional_price(rest)
+        target, drop_pct, rest = _parse_optional_alert_target(rest)
+        if drop_pct is None:
+            drop_pct = trailing_pct
         query = " ".join(rest).strip()
         if not query:
             await update.message.reply_text(
                 "Kullanım:\n"
-                "/add <url> <hedef_fiyat>\n"
-                "/add <hedef_fiyat> <arama metni>\n"
-                "/add trendyol 2500 ck erkek mont xl"
+                "/add <url> <hedef> — örn. 10% veya 2500 --percent 10\n"
+                "/add <hedef> <arama metni>\n"
+                "/add trendyol 10% ck erkek mont xl"
             )
             return
         if not site:
@@ -275,7 +367,16 @@ def build_handlers(
                 reply_markup=_site_keyboard("addsite"),
             )
             return
-        await _run_search_flow(update, settings, sessions, user_id, site, query, target)
+        await _run_search_flow(
+            update,
+            settings,
+            sessions,
+            user_id,
+            site,
+            query,
+            target,
+            drop_pct,
+        )
 
     async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if await unauthorized_reply(update):
@@ -288,8 +389,14 @@ def build_handlers(
         for p in products:
             last = format_price(p.last_price) if p.last_price is not None else "—"
             name = (p.title or p.url)[:60]
+            alert = _format_alert_summary(p.target_price, p.target_drop_percent)
+            base = (
+                f" | Baz: {format_price(p.baseline_price)}"
+                if p.baseline_price is not None
+                else ""
+            )
             lines.append(
-                f"#{p.id} [{p.site}] {name}\n  Son: {last} | Hedef: {format_price(p.target_price)}"
+                f"#{p.id} [{p.site}] {name}\n  Son: {last} | {alert}{base}"
             )
         await update.message.reply_text("\n\n".join(lines))
 
@@ -359,6 +466,7 @@ def build_handlers(
 
             pending_q = sess.pending_query
             pending_price = sess.pending_target_price
+            pending_drop = sess.pending_target_drop_percent
             if not pending_q:
                 sessions.set_preferred_site(user_id, site)
                 await query.edit_message_text(f"Mağaza: {SITE_LABELS.get(site, site)}")
@@ -374,6 +482,7 @@ def build_handlers(
                 site,
                 pending_q,
                 pending_price,
+                pending_drop,
             )
             return
 
@@ -391,14 +500,19 @@ def build_handlers(
             url = item["url"]
             title = item.get("title") or url
             target = sess.pending_target_price
-            if target is None:
+            drop_pct = sess.pending_target_drop_percent
+            listing_price = item.get("price")
+            if target is None and drop_pct is None:
                 sessions.set_pending_product(
                     user_id, url, title, None, awaiting_price=True
                 )
                 await query.edit_message_text(
-                    f"Seçildi: {title[:80]}\n\nHedef fiyatı yazın (ör. 2500 veya 2499,99):"
+                    f"Seçildi: {title[:80]}\n\n"
+                    "Hedef yazın: TL (ör. 2500), yüzde (ör. 10%) veya ikisi (2500 10%)."
                 )
                 return
+            if target is None:
+                target = NO_ABSOLUTE_TARGET
             await _finalize_add(
                 update,
                 repo,
@@ -407,6 +521,8 @@ def build_handlers(
                 url,
                 target,
                 title_hint=title,
+                target_drop_percent=drop_pct,
+                baseline_price=listing_price,
             )
             try:
                 await query.edit_message_text(f"Eklendi: {title[:80]}")
@@ -422,13 +538,16 @@ def build_handlers(
         if not sess.awaiting_price or not sess.pending_url:
             return
         text = (update.message.text or "").strip()
-        if not PRICE_ONLY_RE.match(text):
+        if not ALERT_INPUT_RE.match(text):
             return
-        try:
-            target = float(text.replace(",", "."))
-        except ValueError:
-            await update.message.reply_text("Geçersiz fiyat.")
+        target, drop_pct = _parse_price_message(text)
+        if target is None and drop_pct is None:
+            await update.message.reply_text(
+                "Geçersiz hedef. Örnek: 2500, 10% veya 2500 10%"
+            )
             return
+        if target is None:
+            target = NO_ABSOLUTE_TARGET
         await _finalize_add(
             update,
             repo,
@@ -437,6 +556,7 @@ def build_handlers(
             sess.pending_url,
             target,
             title_hint=sess.pending_title,
+            target_drop_percent=drop_pct,
         )
 
     return [
