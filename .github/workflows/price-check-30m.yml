@@ -1,0 +1,33 @@
+# Vercel Hobby allows at most one Vercel Cron per day; this workflow triggers
+# the production price-check endpoint every 30 minutes instead.
+# Set repository secret CRON_SECRET (same value as Vercel CRON_SECRET).
+
+name: Price check (30m)
+
+on:
+  schedule:
+  - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: price-check-30m
+  cancel-in-progress: false
+
+jobs:
+  call-prod-cron:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger /api/cron/check-prices
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_URL: https://indirim-takip-two.vercel.app/api/cron/check-prices
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::GitHub secret CRON_SECRET is not set. See docs/EXTERNAL_CRON.md"
+            exit 1
+          fi
+          curl -fsS \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${CRON_URL}"

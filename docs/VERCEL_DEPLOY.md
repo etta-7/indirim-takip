@@ -4,7 +4,7 @@ Oracle VM veya uzun süreli Python polling gerekmez. Uygulama `vercel-app/` alt�
 
 ## 0. Ön koşul
 
-Vercel hesabı GitHub’a bağlı (etta-7). Repo’da `vercel-app/vercel.json` cron tanımı mevcuttur (`*/30 * * * *` → `/api/cron/check-prices`).
+Vercel hesabı GitHub’a bağlı (etta-7). **Hobby** planda Vercel Cron günde en fazla **bir** kez çalışabilir; repo’da `vercel-app/vercel.json` yalnızca günlük yedek cron içerir (`0 8 * * *`). **30 dakikalık** kontroller için GitHub Actions veya Oracle timer: [`docs/EXTERNAL_CRON.md`](EXTERNAL_CRON.md).
 
 ## 1. Proje import (bir kez)
 
@@ -63,14 +63,16 @@ Env ekledikten sonra **Deployments** → son deployment → **Redeploy** (veya `
 
 ## 4. Cron
 
-`vercel-app/vercel.json`:
+**30 dakika:** Vercel Hobby dış scheduler kullanır — ayrıntı: [`docs/EXTERNAL_CRON.md`](EXTERNAL_CRON.md). GitHub repo secret `CRON_SECRET`, workflow [`.github/workflows/price-check-30m.yml`](../.github/workflows/price-check-30m.yml).
+
+**Vercel (günlük yedek):** `vercel-app/vercel.json`:
 
 ```json
 {
   "crons": [
     {
       "path": "/api/cron/check-prices",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
@@ -78,11 +80,11 @@ Env ekledikten sonra **Deployments** → son deployment → **Redeploy** (veya `
 
 Vercel cron isteğine `Authorization: Bearer <CRON_SECRET>` ekler; projede aynı `CRON_SECRET` değerini tanımlayın.
 
-Hobby planda cron sıklığı kısıtlı olabilir; Pro’da 30 dk hedeflenir. Manuel test:
+Manuel test:
 
 ```bash
 curl -sS -H "Authorization: Bearer YOUR_CRON_SECRET" \
-  "https://YOUR_DOMAIN.vercel.app/api/cron/check-prices"
+  "https://indirim-takip-two.vercel.app/api/cron/check-prices"
 ```
 
 ## 5. Telegram webhook
@@ -129,4 +131,5 @@ Doğrulama: `npm test && npm run build`
 - [ ] Tüm env değişkenleri Production’da set
 - [ ] Deploy yeşil
 - [ ] `set-telegram-webhook.sh` + Oracle polling kapalı
+- [ ] GitHub Actions secret `CRON_SECRET` (= Vercel `CRON_SECRET`); bkz. `docs/EXTERNAL_CRON.md`
 - [ ] Panel + `/start` smoke test

@@ -122,6 +122,8 @@ Bot `init_db()` çalıştığında SQLite tablosuna `target_drop_percent` ve `ba
 
 Uzun süreli VM veya polling botu olmadan çalıştırmak için Next.js uygulaması: [`vercel-app/`](vercel-app/) ve adım adım kurulum: [`docs/VERCEL_DEPLOY.md`](docs/VERCEL_DEPLOY.md).
 
+**Hobby cron:** Vercel’de günde bir yedek tetikleyici; **30 dakikalık** fiyat kontrolü GitHub Actions ile (`CRON_SECRET` repo secret — Vercel’deki `CRON_SECRET` ile aynı olmalı). Kurulum: [`docs/EXTERNAL_CRON.md`](docs/EXTERNAL_CRON.md).
+
 ## Web paneli (Telegram’a ek)
 
 Aynı SQLite veritabanını (`data/tracker.db`) kullanan mobil uyumlu kişisel panel. Türkçe arayüz; `DASHBOARD_TOKEN` ile korunur (başlık `X-Dashboard-Token`, `Authorization: Bearer` veya çerez).
