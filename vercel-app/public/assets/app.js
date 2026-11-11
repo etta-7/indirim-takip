@@ -143,14 +143,67 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/'/g, "&#39;");
 }
 
+const STALE_CHECK_MS = 28 * 60 * 1000;
+let lastLatestCheck = null;
+let autoTickInFlight = false;
+
+function formatLatestCheck(iso) {
+  if (!iso) return "henüz kontrol yok";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function isCheckStale(iso) {
+  if (!iso) return true;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return true;
+  return Date.now() - t >= STALE_CHECK_MS;
+}
+
+function updateSummary(products, latestCheck) {
+  lastLatestCheck = latestCheck || null;
+  const base =
+    products.length === 0
+      ? "Liste boş"
+      : `${products.length} ürün takipte`;
+  const when = formatLatestCheck(lastLatestCheck);
+  const stale = isCheckStale(lastLatestCheck);
+  summaryEl.textContent = stale
+    ? `${base} · Son kontrol: ${when} (güncelleniyor…)`
+    : `${base} · Son kontrol: ${when}`;
+}
+
 async function loadProducts() {
   const data = await api("/api/products");
   const products = data.products || [];
   renderProducts(products);
-  summaryEl.textContent =
-    products.length === 0
-      ? "Liste boş"
-      : `${products.length} ürün takipte`;
+  updateSummary(products, data.latest_check);
+  return data;
+}
+
+async function maybeAutoPriceCheck() {
+  if (document.hidden || autoTickInFlight || !getToken()) return;
+  if (!isCheckStale(lastLatestCheck)) return;
+  autoTickInFlight = true;
+  try {
+    const data = await api("/api/schedule/tick", { method: "POST" });
+    if (data.result === "ran") {
+      showToast("Otomatik fiyat kontrolü yapıldı.");
+      await loadProducts();
+    } else if (data.latest_check) {
+      lastLatestCheck = data.latest_check;
+      const products = listEl.querySelectorAll("li").length;
+      updateSummary(
+        { length: products },
+        data.latest_check
+      );
+    }
+  } catch {
+    /* sessiz: ağ veya kilit */
+  } finally {
+    autoTickInFlight = false;
+  }
 }
 
 async function runCheck() {
@@ -208,13 +261,38 @@ formToken.addEventListener("submit", async (ev) => {
   }
 });
 
+function parseOptionalPrice(raw) {
+  const s = String(raw || "").trim().replace(",", ".");
+  if (!s) return null;
+  const n = parseFloat(s);
+  if (Number.isNaN(n) || n < 0) return undefined;
+  return n;
+}
+
+function parseOptionalPercent(raw) {
+  const s = String(raw || "").trim().replace("%", "").replace(",", ".");
+  if (!s) return null;
+  const n = parseFloat(s);
+  if (Number.isNaN(n) || n <= 0 || n > 100) return undefined;
+  return n;
+}
+
 formAdd.addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const fd = new FormData(formAdd);
   const url = String(fd.get("url") || "").trim();
-  const target_text = String(fd.get("target_text") || "").trim();
+  const priceRaw = fd.get("target_price");
+  const pctRaw = fd.get("target_drop_percent");
+  const target_price = parseOptionalPrice(priceRaw);
+  const target_drop_percent = parseOptionalPercent(pctRaw);
+  if (target_price === undefined || target_drop_percent === undefined) {
+    showToast("Geçersiz hedef. TL: 2500 · Yüzde: 1–100 arası sayı.");
+    return;
+  }
   const body = { url };
-  if (target_text) body.target_text = target_text;
+  if (target_price != null) body.target_price = target_price;
+  if (target_drop_percent != null) body.target_drop_percent = target_drop_percent;
+  // Her iki alan boşsa yalnızca URL ile ekleme dene (sunucu kuralları geçerli).
   try {
     await api("/api/products", {
       method: "POST",
@@ -250,7 +328,25 @@ $("#btn-refresh").addEventListener("click", () => {
 $("#btn-settings").addEventListener("click", openTokenDialog);
 
 if (getToken()) {
-  initApp().catch(() => openTokenDialog());
+  initApp()
+    .then(() => maybeAutoPriceCheck())
+    .catch(() => openTokenDialog());
 } else {
   openTokenDialog();
 }
+
+setInterval(() => {
+  if (document.hidden || !getToken()) return;
+  maybeAutoPriceCheck();
+}, 60_000);
+
+setInterval(() => {
+  if (document.hidden || !getToken()) return;
+  loadProducts().catch(() => {});
+}, 2 * 60_000);
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && getToken()) {
+    loadProducts().then(() => maybeAutoPriceCheck()).catch(() => {});
+  }
+});

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { runCheckIfStale } from "@/lib/auto-schedule";
 import { handleTelegramUpdate } from "@/lib/telegram-handlers";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
   try {
+    const stale = await runCheckIfStale();
+    if (stale === "ran") {
+      console.info("auto-schedule: price check completed (telegram)");
+    }
     await handleTelegramUpdate(update as Parameters<typeof handleTelegramUpdate>[0]);
   } catch (e) {
     console.error("Telegram handler error", e);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireDashboardToken } from "@/lib/auth/dashboard";
-import { listProducts } from "@/lib/db/products";
+import { latestCheckTime, listProducts } from "@/lib/db/products";
 import { productToDict } from "@/lib/db/types";
 import { addProductFromRequest } from "@/lib/product-ops";
 
@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ detail: "Geçersiz veya eksik panel anahtarı." }, { status: 401 });
   }
   const products = await listProducts();
-  return NextResponse.json({ products: products.map(productToDict) });
+  const latest_check = await latestCheckTime();
+  return NextResponse.json({ products: products.map(productToDict), latest_check });
 }
 
 export async function POST(req: NextRequest) {

@@ -32,17 +32,40 @@ export default function HomePage() {
                 required
               />
             </label>
-            <label className="field">
-              <span className="field__label">Hedef (isteğe bağlı)</span>
-              <input
-                className="field__input"
-                type="text"
-                name="target_text"
-                inputMode="decimal"
-                placeholder="ör. 2500, 10% veya 2500 10%"
-              />
-              <span className="field__hint">Bot ile aynı kurallar: TL, yüzde veya ikisi</span>
-            </label>
+            <fieldset className="field-group" aria-labelledby="alert-heading">
+              <legend id="alert-heading" className="field-group__legend">
+                Uyarı eşiği (en az biri)
+              </legend>
+              <label className="field">
+                <span className="field__label">Hedef fiyat (TL)</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  name="target_price"
+                  id="input-target-price"
+                  inputMode="decimal"
+                  enterKeyHint="next"
+                  placeholder="ör. 2500"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Yüzde düşüş (%)</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  name="target_drop_percent"
+                  id="input-target-percent"
+                  inputMode="numeric"
+                  enterKeyHint="done"
+                  placeholder="ör. 10"
+                  autoComplete="off"
+                />
+                <span className="field__hint">
+                  Sadece yüzde, sadece TL veya ikisi birlikte — bot ile aynı mantık
+                </span>
+              </label>
+            </fieldset>
             <button type="submit" className="btn btn--secondary btn--block">
               Listeye ekle
             </button>
@@ -98,7 +121,7 @@ export default function HomePage() {
       </dialog>
 
       <div id="toast" className="toast" role="status" hidden />
-      <Script src="/assets/app.js" strategy="afterInteractive" />
+      <Script src="/assets/app.js?v=3" strategy="afterInteractive" />
     </>
   );
 }

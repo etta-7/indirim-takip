@@ -102,6 +102,25 @@ body {
   margin: 0;
 }
 
+.field-group {
+  margin: 0 0 14px;
+  padding: 12px 14px 2px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.field-group__legend {
+  padding: 0 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.field-group .field:last-child {
+  margin-bottom: 10px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

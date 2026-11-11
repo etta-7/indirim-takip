@@ -46,17 +46,38 @@
               required
             />
           </label>
-          <label class="field">
-            <span class="field__label">Hedef (isteğe bağlı)</span>
-            <input
-              class="field__input"
-              type="text"
-              name="target_text"
-              inputmode="decimal"
-              placeholder="ör. 2500, 10% veya 2500 10%"
-            />
-            <span class="field__hint">Bot ile aynı kurallar: TL, yüzde veya ikisi</span>
-          </label>
+          <fieldset class="field-group" aria-labelledby="alert-heading">
+            <legend id="alert-heading" class="field-group__legend">
+              Uyarı eşiği (en az biri)
+            </legend>
+            <label class="field">
+              <span class="field__label">Hedef fiyat (TL)</span>
+              <input
+                class="field__input"
+                type="text"
+                name="target_price"
+                inputmode="decimal"
+                enterkeyhint="next"
+                placeholder="ör. 2500"
+                autocomplete="off"
+              />
+            </label>
+            <label class="field">
+              <span class="field__label">Yüzde düşüş (%)</span>
+              <input
+                class="field__input"
+                type="text"
+                name="target_drop_percent"
+                inputmode="numeric"
+                enterkeyhint="done"
+                placeholder="ör. 10"
+                autocomplete="off"
+              />
+              <span class="field__hint">
+                Sadece yüzde, sadece TL veya ikisi birlikte — bot ile aynı mantık
+              </span>
+            </label>
+          </fieldset>
           <button type="submit" class="btn btn--secondary btn--block">
             Listeye ekle
           </button>
