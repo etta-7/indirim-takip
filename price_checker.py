@@ -42,7 +42,12 @@ def format_percent(value: float) -> str:
 
 
 class PriceChecker:
-    def __init__(self, settings: Settings, repo: ProductRepository, bot: Bot) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        repo: ProductRepository,
+        bot: Bot | None,
+    ) -> None:
         self.settings = settings
         self.repo = repo
         self.bot = bot
@@ -127,7 +132,7 @@ class PriceChecker:
         old_price: float | None,
         new_price: float,
     ) -> None:
-        if not absolute_target_active(product.target_price):
+        if self.bot is None or not absolute_target_active(product.target_price):
             return
         old_s = format_price(old_price) if old_price is not None else "—"
         text = (
@@ -154,6 +159,8 @@ class PriceChecker:
         new_price: float,
         drop_pct: float,
     ) -> None:
+        if self.bot is None:
+            return
         old_s = format_price(old_price) if old_price is not None else "—"
         threshold = product.target_drop_percent or 0
         text = (
