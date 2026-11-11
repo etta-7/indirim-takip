@@ -118,10 +118,52 @@ sudo systemctl enable --now indirim-takip
 
 Bot `init_db()` çalıştığında SQLite tablosuna `target_drop_percent` ve `baseline_price` sütunları eklenir (mevcut kayıtlar etkilenmez).
 
+## Web paneli (Telegram’a ek)
+
+Aynı SQLite veritabanını (`data/tracker.db`) kullanan mobil uyumlu kişisel panel. Türkçe arayüz; `DASHBOARD_TOKEN` ile korunur (başlık `X-Dashboard-Token`, `Authorization: Bearer` veya çerez).
+
+### Yerel geliştirme
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+# .env içine DASHBOARD_TOKEN=... ekleyin
+python -m dashboard
+```
+
+Tarayıcıda `http://127.0.0.1:8787` açın; ilk açılışta panel anahtarını girin (cihazda saklanır). Telefonunuzdan aynı ağda test için geçici olarak `DASHBOARD_HOST=0.0.0.0` kullanabilirsiniz; üretimde yalnızca localhost önerilir.
+
+Ana ekran: ürün listesi, link ile ekleme (hedef: TL / `10%` / ikisi), silme, **Şimdi kontrol et** (`PriceChecker` — Telegram ayarlıysa uyarılar gider).
+
+iOS/Android: **Ana ekrana ekle** için minimal PWA (`manifest.webmanifest`, `theme-color`, güvenli alan boşlukları).
+
+`main.py` botu değiştirmez; paneli botla birlikte veya ayrı process olarak çalıştırın:
+
+```bash
+python main.py          # Telegram bot
+python -m dashboard     # Web panel (8787)
+```
+
+### Oracle VPS (isteğe bağlı)
+
+Paneli yalnızca localhost’ta dinletin; dışarıdan SSH tüneli ile erişin:
+
+```bash
+ssh -L 8787:127.0.0.1:8787 kullanici@sunucu
+```
+
+Örnek birim dosyası: `deploy/indirim-takip-dashboard.service` (port `8787`, `EnvironmentFile` ile `.env`). Güvenlik duvarında 8787’yi açmayın; tünel veya özel VPN yeterli.
+
+| Değişken | Açıklama |
+|----------|-----------|
+| `DASHBOARD_TOKEN` | Panel erişim anahtarı (zorunlu) |
+| `DASHBOARD_HOST` | Varsayılan `127.0.0.1` |
+| `DASHBOARD_PORT` | Varsayılan `8787` |
+
 ## Test
 
 ```bash
-pip install pytest
+pip install pytest httpx
 pytest tests/
 ```
 

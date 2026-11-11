@@ -1,0 +1,16 @@
+[Unit]
+Description=Indirim Takip Web Panel
+After=network.target
+
+[Service]
+Type=simple
+User=indirim
+WorkingDirectory=/opt/indirim-takip
+Environment=PATH=/opt/indirim-takip/.venv/bin
+EnvironmentFile=-/opt/indirim-takip/.env
+ExecStart=/opt/indirim-takip/.venv/bin/python -m dashboard
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
