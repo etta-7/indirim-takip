@@ -1,0 +1,28 @@
+{
+  "name": "indirim-takip-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "db:migrate": "node scripts/run-migrate.mjs"
+  },
+  "dependencies": {
+    "@vercel/postgres": "^0.10.0",
+    "cheerio": "^1.0.0",
+    "next": "^14.2.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "pg": "^8.13.1",
+    "@types/node": "^20.17.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

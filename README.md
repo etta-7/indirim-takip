@@ -118,6 +118,10 @@ sudo systemctl enable --now indirim-takip
 
 Bot `init_db()` çalıştığında SQLite tablosuna `target_drop_percent` ve `baseline_price` sütunları eklenir (mevcut kayıtlar etkilenmez).
 
+## Vercel (önerilen)
+
+Uzun süreli VM veya polling botu olmadan çalıştırmak için Next.js uygulaması: [`vercel-app/`](vercel-app/) ve adım adım kurulum: [`docs/VERCEL_DEPLOY.md`](docs/VERCEL_DEPLOY.md).
+
 ## Web paneli (Telegram’a ek)
 
 Aynı SQLite veritabanını (`data/tracker.db`) kullanan mobil uyumlu kişisel panel. Türkçe arayüz; `DASHBOARD_TOKEN` ile korunur (başlık `X-Dashboard-Token`, `Authorization: Bearer` veya çerez).
