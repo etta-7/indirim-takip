@@ -1,0 +1,14 @@
+[Unit]
+Description=Indirim Takip Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/indirim-takip
+EnvironmentFile=/opt/indirim-takip/.env
+ExecStart=/opt/indirim-takip/.venv/bin/python main.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
