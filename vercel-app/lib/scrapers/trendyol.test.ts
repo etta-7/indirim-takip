@@ -28,6 +28,20 @@ describe("Trendyol URL detection", () => {
       762254881
     );
   });
+
+  const avvaUrl =
+    "https://www.trendyol.com/avva/erkek-bej-beli-lastikli-100-keten-relaxed-fit-pantolon-b003032-p-926542786";
+
+  it("extracts trailing content id for SKU-style slugs (b003032-p-926542786)", () => {
+    expect(extractTrendyolContentId(avvaUrl)).toBe(926542786);
+    expect(detectSite(avvaUrl)).toBe("trendyol");
+  });
+
+  it("prefers last -p-id when slug contains multiple segments", () => {
+    expect(
+      extractTrendyolContentId("https://www.trendyol.com/x/clearance-p-111222333-sku-b003032-p-926542786")
+    ).toBe(926542786);
+  });
 });
 
 describe("Trendyol parsers", () => {
@@ -38,6 +52,14 @@ describe("Trendyol parsers", () => {
     );
     const result = parseTrendyol(html);
     expect(result.price).toBe(1299.99);
+  });
+
+  it("parses embedded JSON object price from HTML", () => {
+    const html = fs.readFileSync(
+      path.join(__dirname, "../../../tests/fixtures/trendyol_embedded_price.html"),
+      "utf8"
+    );
+    expect(parseTrendyol(html).price).toBe(899.99);
   });
 
   it("parses API JSON fixture", () => {

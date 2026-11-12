@@ -25,8 +25,22 @@ export function parseTrendyol(html: string): PriceResult {
     }
   }
   if (price == null) {
-    const m = html.match(/"sellingPrice"\s*:\s*([\d.]+)/);
-    if (m) price = parseFloat(m[1]);
+    const patterns = [
+      /"discountedPrice"\s*:\s*\{[^}]*"value"\s*:\s*([\d.]+)/,
+      /"sellingPrice"\s*:\s*\{[^}]*"value"\s*:\s*([\d.]+)/,
+      /"sellingPrice"\s*:\s*([\d.]+)/,
+      /"discountedPrice"\s*:\s*([\d.]+)/,
+    ];
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m) {
+        const p = parseFloat(m[1]);
+        if (p > 0) {
+          price = p;
+          break;
+        }
+      }
+    }
   }
   if (price == null) throw new Error("Trendyol fiyat bulunamadı");
   return { title, price, currency: "TRY" };
