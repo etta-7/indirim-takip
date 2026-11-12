@@ -13,11 +13,32 @@ The route accepts the shared secret in either form (see `vercel-app/app/api/cron
 
 `CRON_SECRET` must be set in **Vercel** (Production) and duplicated wherever the external scheduler runs.
 
+## Reliable fallback: HTTP ping `/api/health` (no secret)
+
+When GitHub `schedule` runs stay at **zero** (disabled workflow or actor issue), use a free external scheduler to **GET** the production health URL every **15 minutes**. The handler runs `runCheckIfStale()` (≈28‑minute threshold, advisory lock) so you do not need `CRON_SECRET` on the scheduler.
+
+| Field | Value |
+|--------|--------|
+| URL | `https://indirim-takip-two.vercel.app/api/health` |
+| Method | GET |
+| Interval | 15 minutes (or 10–30m) |
+| Auth | None |
+
+**cron-job.org (example, ~2 minutes one-time):**
+
+1. Sign in at [cron-job.org](https://cron-job.org/) → **Cronjobs** → **Create cronjob**.
+2. **Title:** `indirim-takip health`
+3. **URL:** `https://indirim-takip-two.vercel.app/api/health`
+4. **Schedule:** every 15 minutes (`*/15 * * * *` or the UI equivalent).
+5. Save. Expected JSON: `{"ok":true,"stale_check":"ran"|"skipped"|"locked","latest_check":"..."}`.
+
+Same pattern works on [UptimeRobot](https://uptimerobot.com/) (HTTP monitor, 5‑minute interval) or Oracle `systemd` + `curl -fsS` against `/api/health`.
+
 ## Recommended: GitHub Actions (every 30 minutes)
 
 Workflow: [`.github/workflows/price-check-30m.yml`](../.github/workflows/price-check-30m.yml)
 
-Schedule: UTC **:05** and **:35** each hour (→ **:08** and **:38** Europe/Istanbul, UTC+3). You can also run it manually from the **Actions** tab (**workflow_dispatch**) or:
+Schedule: UTC **:08** and **:38** each hour (→ **:11** and **:41** Europe/Istanbul, UTC+3). You can also run it manually from the **Actions** tab (**workflow_dispatch**), via **repository_dispatch** (`price-check-30m`), or:
 
 ```bash
 gh workflow run price-check-30m.yml --repo etta-7/indirim-takip
@@ -31,6 +52,9 @@ gh workflow run price-check-30m.yml --repo etta-7/indirim-takip
 4. **Repo settings:** Settings → Actions → General → allow Actions and this workflow; workflow file must be on the default branch (`main`).
 5. **Immediate check (prod):** Run the workflow manually (step above) or `curl` the prod endpoint with `CRON_SECRET` (see Manual test).
 6. **Cloud agent limits:** The Cursor GitHub integration can list runs but typically cannot `workflow run` or enable workflows (HTTP 403); use the owner account or Actions UI.
+7. **Still no schedule after owner merge:** Register the **health ping** above; keep GitHub as optional redundancy when schedule runs appear.
+
+**repository_dispatch (optional):** POST `https://api.github.com/repos/etta-7/indirim-takip/dispatches` with body `{"event_type":"price-check-30m"}` and a classic PAT with `repo` scope (same effect as `workflow_dispatch` when schedule is broken).
 
 **Windows `IndirimTakipPriceCheck` task:** Disabling it only stops the local duplicate curl; it does **not** affect GitHub or Vercel cron.
 
