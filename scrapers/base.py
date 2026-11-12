@@ -72,6 +72,9 @@ def fetch_price(url: str, user_agent: str) -> PriceResult:
 
     if site == "trendyol":
         result = trendyol.fetch_price(resolved, user_agent)
+    elif site == "hepsiburada":
+        page_url = resolved if "hepsiburada.com" in resolved.lower() else url
+        result = hepsiburada.fetch_price(url, user_agent, page_url)
     else:
         html = fetch_html(resolved, user_agent)
         result = PARSERS[site](html)
