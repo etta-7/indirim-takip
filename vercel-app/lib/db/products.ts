@@ -89,33 +89,17 @@ export function isCheckStale(
 export async function productDbStats(
   maxAgeMs = DEFAULT_STALE_MS
 ): Promise<ProductDbStats> {
-  const staleSeconds = Math.max(1, Math.floor(maxAgeMs / 1000));
   const { rows: statsRows } = await sql`
-    SELECT
-      COUNT(*)::int AS c,
-      MAX(last_checked_at) AS t,
-      (
-        COUNT(*) > 0
-        AND (
-          MAX(last_checked_at) IS NULL
-          OR EXTRACT(EPOCH FROM (NOW() - MAX(last_checked_at))) >= ${staleSeconds}
-        )
-      ) AS check_stale
-    FROM products
+    SELECT COUNT(*)::int AS c, MAX(last_checked_at) AS t FROM products
   `;
   const row = statsRows[0] as Record<string, unknown> | undefined;
+  const count = Number(row?.c ?? 0);
+  const latestCheck = formatTimestamptz(row?.t);
   return {
-    count: Number(row?.c ?? 0),
-    latestCheck: formatTimestamptz(row?.t),
-    checkStale: pgBool(row?.check_stale),
+    count,
+    latestCheck,
+    checkStale: isCheckStale(count, latestCheck, maxAgeMs),
   };
-}
-
-function pgBool(value: unknown): boolean {
-  if (value === true || value === 1) return true;
-  if (value === false || value === 0 || value == null) return false;
-  const s = String(value).toLowerCase();
-  return s === "t" || s === "true";
 }
 
 function formatTimestamptz(value: unknown): string | null {
