@@ -208,21 +208,34 @@ def parse_html(html: str) -> PriceResult:
 
 
 def fetch_price(url: str, user_agent: str) -> PriceResult:
+    from scrapers.trendyol_akakce_fallback import fetch_via_akakce
+
     resolved = resolve_product_url(url, user_agent)
     page_url = resolved if is_trendyol_url(resolved) else url
     content_id = extract_trendyol_content_id(page_url)
+    errors: list[str] = []
     if content_id is not None:
         try:
             return fetch_via_api(content_id, user_agent, page_url)
-        except (requests.RequestException, ValueError):
-            pass
+        except (requests.RequestException, ValueError) as exc:
+            errors.append(str(exc))
     headers = {
         "User-Agent": user_agent,
         "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
         "Accept": "text/html,application/xhtml+xml",
         **trendyol_request_headers(page_url),
     }
-    resp = requests.get(page_url, headers=headers, timeout=15.0)
-    resp.raise_for_status()
-    resp.encoding = resp.apparent_encoding or "utf-8"
-    return parse_html(resp.text)
+    try:
+        resp = requests.get(page_url, headers=headers, timeout=15.0)
+        resp.raise_for_status()
+        resp.encoding = resp.apparent_encoding or "utf-8"
+        return parse_html(resp.text)
+    except requests.RequestException as exc:
+        errors.append(str(exc))
+    try:
+        return fetch_via_akakce(page_url, user_agent)
+    except (requests.RequestException, ValueError) as exc:
+        errors.append(str(exc))
+    raise ValueError(
+        "Trendyol fiyat bulunamadı" + (f" ({'; '.join(errors[:3])})" if errors else "")
+    )

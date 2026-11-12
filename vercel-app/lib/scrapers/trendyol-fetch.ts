@@ -1,5 +1,6 @@
 import { fetchHtml } from "./base";
 import { parseTrendyol } from "./trendyol";
+import { fetchTrendyolViaAkakce } from "./trendyol-akakce-fallback";
 import {
   canonicalTrendyolProductUrl,
   extractTrendyolContentId,
@@ -8,21 +9,38 @@ import {
 } from "./trendyol-url";
 import type { PriceResult } from "./pricing";
 
-const API_BASE =
-  "https://apigw.trendyol.com/discovery-web-productgw-service/api/productDetail";
+const API_PATH = "/discovery-web-productgw-service/api/productDetail";
+const API_BASES = [
+  `https://apigw.trendyol.com${API_PATH}`,
+  `https://www.trendyol.com/api${API_PATH}`,
+];
+const MOBILE_APP_ID = "4aeffe4c-5887-11e8-a657-3787f655e34c";
 
-export function trendyolRequestHeaders(referer?: string): Record<string, string> {
-  return {
+export function trendyolRequestHeaders(
+  referer?: string,
+  opts: { mobile?: boolean } = {}
+): Record<string, string> {
+  const base: Record<string, string> = {
     Accept: "application/json, text/plain, */*",
     "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
     Origin: "https://www.trendyol.com",
     Referer: referer ?? "https://www.trendyol.com/",
-    "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"Windows"',
     "Sec-Fetch-Dest": "empty",
     "Sec-Fetch-Mode": "cors",
     "Sec-Fetch-Site": "same-site",
+  };
+  if (opts.mobile) {
+    return {
+      ...base,
+      "x-application-id": MOBILE_APP_ID,
+      "x-channel": "android",
+    };
+  }
+  return {
+    ...base,
+    "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
   };
 }
 
@@ -82,6 +100,39 @@ export function extractTrendyolListingParams(
   }
 }
 
+async function fetchTrendyolApiOnce(
+  apiBase: string,
+  contentId: number,
+  userAgent: string,
+  referer: string,
+  qs: URLSearchParams,
+  headerOpts: { mobile?: boolean }
+): Promise<PriceResult> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(`${apiBase}/${contentId}?${qs}`, {
+      headers: {
+        "User-Agent": userAgent,
+        ...trendyolRequestHeaders(referer, headerOpts),
+      },
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      throw new Error(`Trendyol API HTTP ${resp.status} (${apiBase})`);
+    }
+    const ct = resp.headers.get("content-type") ?? "";
+    if (!ct.includes("application/json")) {
+      throw new Error(`Trendyol API JSON değil (${apiBase})`);
+    }
+    const json = await resp.json();
+    const result = parseTrendyolApiPayload(json);
+    return { ...result, priceSource: "trendyol-api" };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 export async function fetchTrendyolApi(
   contentId: number,
   userAgent: string,
@@ -99,23 +150,17 @@ export async function fetchTrendyolApi(
   if (listing.boutiqueId) qs.set("boutiqueId", listing.boutiqueId);
   const referer =
     pageUrl && isTrendyolUrl(pageUrl) ? pageUrl : canonicalTrendyolProductUrl(contentId);
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 15000);
-  try {
-    const resp = await fetch(`${API_BASE}/${contentId}?${qs}`, {
-      headers: { "User-Agent": userAgent, ...trendyolRequestHeaders(referer) },
-      signal: controller.signal,
-    });
-    if (!resp.ok) throw new Error(`Trendyol API HTTP ${resp.status}`);
-    const ct = resp.headers.get("content-type") ?? "";
-    if (!ct.includes("application/json")) {
-      throw new Error("Trendyol API JSON değil");
+  const errors: string[] = [];
+  for (const apiBase of API_BASES) {
+    for (const mobile of [false, true]) {
+      try {
+        return await fetchTrendyolApiOnce(apiBase, contentId, userAgent, referer, qs, { mobile });
+      } catch (e) {
+        errors.push(e instanceof Error ? e.message : String(e));
+      }
     }
-    const json = await resp.json();
-    return parseTrendyolApiPayload(json);
-  } finally {
-    clearTimeout(t);
   }
+  throw new Error(errors.join("; ") || "Trendyol API başarısız");
 }
 
 export async function resolveRedirects(url: string, userAgent: string, max = 6): Promise<string> {
@@ -169,13 +214,29 @@ export async function fetchTrendyolPrice(url: string, userAgent: string): Promis
   const resolved = await resolveProductUrl(url, userAgent);
   const pageUrl = isTrendyolUrl(resolved) ? resolved : url;
   const contentId = extractTrendyolContentId(pageUrl);
+  const errors: string[] = [];
   if (contentId != null) {
     try {
       return await fetchTrendyolApi(contentId, userAgent, pageUrl);
-    } catch {
-      /* fall through to HTML */
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
     }
   }
-  const html = await fetchHtml(pageUrl, userAgent, 15000, trendyolRequestHeaders(pageUrl));
-  return parseTrendyol(html);
+  try {
+    const html = await fetchHtml(pageUrl, userAgent, 15000, trendyolRequestHeaders(pageUrl));
+    const parsed = parseTrendyol(html);
+    return { ...parsed, priceSource: "trendyol-html" };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : String(e));
+  }
+  try {
+    return await fetchTrendyolViaAkakce(pageUrl, userAgent);
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : String(e));
+  }
+  throw new Error(
+    errors.length
+      ? `Trendyol fiyat bulunamadı (${errors.slice(0, 3).join(" · ")})`
+      : "Trendyol fiyat bulunamadı"
+  );
 }

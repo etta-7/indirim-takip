@@ -39,5 +39,8 @@ export async function POST(req: NextRequest) {
   if (typeof result === "string") {
     return NextResponse.json({ detail: result }, { status: 400 });
   }
-  return NextResponse.json(productToDict(result));
+  return NextResponse.json({
+    ...productToDict(result.product),
+    scrape_warning: result.scrape_warning ?? null,
+  });
 }
