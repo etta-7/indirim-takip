@@ -62,10 +62,18 @@ export async function countProducts(): Promise<number> {
   return Number(rows[0]?.c ?? 0);
 }
 
+function formatTimestamptz(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  const s = String(value);
+  const ms = new Date(s).getTime();
+  if (!Number.isNaN(ms)) return new Date(ms).toISOString();
+  return s;
+}
+
 export async function latestCheckTime(): Promise<string | null> {
   const { rows } = await sql`SELECT MAX(last_checked_at) AS t FROM products`;
-  const t = rows[0]?.t;
-  return t != null ? String(t) : null;
+  return formatTimestamptz(rows[0]?.t);
 }
 
 export async function updateAfterCheck(

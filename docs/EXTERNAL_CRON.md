@@ -30,7 +30,7 @@ When GitHub `schedule` runs stay at **zero** (disabled workflow or actor issue),
 2. **Title:** `indirim-takip health`
 3. **URL:** `https://indirim-takip-two.vercel.app/api/health`
 4. **Schedule:** every 15 minutes (`*/15 * * * *` or the UI equivalent).
-5. Save. Expected JSON: `{"ok":true,"stale_check":"ran"|"skipped"|"locked","latest_check":"..."}`.
+5. Save. Expected JSON: `{"ok":true,"stale_check":"ran"|"skipped"|"locked","latest_check":"<ISO8601>","product_count":N,...}`. When `stale_check` is `ran`, also check `check_ok`, `check_failed`, and `prices_updated` (true only if at least one product scraped successfully).
 
 Same pattern works on [UptimeRobot](https://uptimerobot.com/) (HTTP monitor, 5‑minute interval) or Oracle `systemd` + `curl -fsS` against `/api/health`.
 
