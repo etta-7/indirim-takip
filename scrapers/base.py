@@ -7,6 +7,7 @@ import requests
 
 from scrapers import akakce, cimri, hepsiburada, trendyol
 from scrapers.pricing import PriceResult
+from scrapers.hepsiburada_url import is_hepsiburada_url
 from scrapers.trendyol_url import is_trendyol_url
 
 SITE_DETECTORS: list[tuple[str, Callable[[str], bool]]] = [
@@ -27,6 +28,8 @@ PARSERS: dict[str, Callable[[str], PriceResult]] = {
 def detect_site(url: str) -> str:
     if is_trendyol_url(url):
         return "trendyol"
+    if is_hepsiburada_url(url):
+        return "hepsiburada"
     for name, matcher in SITE_DETECTORS:
         if matcher(url):
             return name

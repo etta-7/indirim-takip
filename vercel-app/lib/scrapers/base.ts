@@ -4,6 +4,7 @@ import { parseAkakce } from "./akakce";
 import { parseCimri } from "./cimri";
 import { parseTrendyol } from "./trendyol";
 import { fetchTrendyolPrice, resolveProductUrl } from "./trendyol-fetch";
+import { isHepsiburadaUrl } from "./hepsiburada-url";
 import { isTrendyolUrl } from "./trendyol-url";
 import type { PriceResult } from "./pricing";
 
@@ -15,6 +16,7 @@ const PARSERS: Record<string, (html: string) => PriceResult> = {
 
 export function detectSite(url: string): string {
   if (isTrendyolUrl(url)) return "trendyol";
+  if (isHepsiburadaUrl(url)) return "hepsiburada";
   const u = url.toLowerCase();
   if (u.includes("trendyol")) return "trendyol";
   if (u.includes("hepsiburada")) return "hepsiburada";
