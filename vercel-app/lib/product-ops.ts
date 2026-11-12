@@ -6,7 +6,8 @@ import {
 } from "./alert-rules";
 import { addProduct } from "./db/products";
 import type { Product } from "./db/types";
-import { detectSite } from "./scrapers/base";
+import { detectSite, resolveProductUrl } from "./scrapers/base";
+import { getHttpUserAgent } from "./env";
 
 export type AddProductRequest = {
   url: string;
@@ -58,8 +59,9 @@ export function resolveTargets(
 }
 
 export async function addProductFromRequest(req: AddProductRequest): Promise<Product | string> {
-  const url = req.url.trim();
-  if (!url) return "URL gerekli.";
+  const raw = req.url.trim();
+  if (!raw) return "URL gerekli.";
+  const url = await resolveProductUrl(raw, getHttpUserAgent());
   const resolved = resolveTargets(req);
   if (typeof resolved === "string") return resolved;
   const { target, drop } = resolved;

@@ -7,6 +7,7 @@ import requests
 
 from scrapers import akakce, cimri, hepsiburada, trendyol
 from scrapers.pricing import PriceResult
+from scrapers.trendyol_url import is_trendyol_url
 
 SITE_DETECTORS: list[tuple[str, Callable[[str], bool]]] = [
     ("trendyol", trendyol.url_matches),
@@ -24,6 +25,8 @@ PARSERS: dict[str, Callable[[str], PriceResult]] = {
 
 
 def detect_site(url: str) -> str:
+    if is_trendyol_url(url):
+        return "trendyol"
     for name, matcher in SITE_DETECTORS:
         if matcher(url):
             return name
@@ -39,12 +42,19 @@ def detect_site(url: str) -> str:
     return "unknown"
 
 
-def fetch_html(url: str, user_agent: str, timeout: float = 15.0) -> str:
+def fetch_html(
+    url: str,
+    user_agent: str,
+    timeout: float = 15.0,
+    extra_headers: dict[str, str] | None = None,
+) -> str:
     headers = {
         "User-Agent": user_agent,
         "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
         "Accept": "text/html,application/xhtml+xml",
     }
+    if extra_headers:
+        headers.update(extra_headers)
     resp = requests.get(url, headers=headers, timeout=timeout)
     resp.raise_for_status()
     resp.encoding = resp.apparent_encoding or "utf-8"
@@ -52,12 +62,16 @@ def fetch_html(url: str, user_agent: str, timeout: float = 15.0) -> str:
 
 
 def fetch_price(url: str, user_agent: str) -> PriceResult:
-    site = detect_site(url)
+    resolved = trendyol.resolve_product_url(url, user_agent)
+    site = detect_site(resolved)
     if site == "unknown" or site not in PARSERS:
         raise ValueError(f"Desteklenmeyen veya tanınamayan URL: {url}")
 
-    html = fetch_html(url, user_agent)
-    result = PARSERS[site](html)
+    if site == "trendyol":
+        result = trendyol.fetch_price(resolved, user_agent)
+    else:
+        html = fetch_html(resolved, user_agent)
+        result = PARSERS[site](html)
     if result.price <= 0:
         raise ValueError(f"Fiyat okunamadı: {url}")
     return result
