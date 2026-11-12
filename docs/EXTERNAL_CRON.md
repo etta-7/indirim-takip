@@ -17,7 +17,22 @@ The route accepts the shared secret in either form (see `vercel-app/app/api/cron
 
 Workflow: [`.github/workflows/price-check-30m.yml`](../.github/workflows/price-check-30m.yml)
 
-Schedule: `*/30 * * * *` (UTC). You can also run it manually from the **Actions** tab (**workflow_dispatch**).
+Schedule: UTC **:05** and **:35** each hour (→ **:08** and **:38** Europe/Istanbul, UTC+3). You can also run it manually from the **Actions** tab (**workflow_dispatch**) or:
+
+```bash
+gh workflow run price-check-30m.yml --repo etta-7/indirim-takip
+```
+
+### Troubleshooting: no `schedule` runs (only manual runs)
+
+1. **Confirm events:** Actions → *Price check (30m)* → filter runs by *Event: schedule*. Zero schedule runs after several hours usually means GitHub is not firing cron, not a bad `CRON_SECRET`.
+2. **Enable the workflow:** Actions → *Price check (30m)* → if you see *This scheduled workflow is disabled*, click **Enable workflow**. Public repos auto-disable schedules after **60 days** without repo activity.
+3. **Schedule actor:** GitHub ties scheduled runs to the user who last **pushed** an edit to the `schedule` / `cron` block. If only a bot (e.g. Cursor Agent) pushed that change, cron may not run until a human with write access merges or commits a cron edit. **Merge a small workflow change as the repo owner** to reset the actor.
+4. **Repo settings:** Settings → Actions → General → allow Actions and this workflow; workflow file must be on the default branch (`main`).
+5. **Immediate check (prod):** Run the workflow manually (step above) or `curl` the prod endpoint with `CRON_SECRET` (see Manual test).
+6. **Cloud agent limits:** The Cursor GitHub integration can list runs but typically cannot `workflow run` or enable workflows (HTTP 403); use the owner account or Actions UI.
+
+**Windows `IndirimTakipPriceCheck` task:** Disabling it only stops the local duplicate curl; it does **not** affect GitHub or Vercel cron.
 
 ### One-time: set `CRON_SECRET` on GitHub
 

@@ -5,7 +5,11 @@ name: Price check (30m)
 
 on:
   schedule:
-    - cron: "5,35 * * * *"
+    # Two entries (UTC :05 and :35) — offset from the hour; Istanbul = UTC+3 (e.g. 08:05 UTC → 11:05 TR).
+    # Schedule runs use the GitHub user who last *pushed* an edit to this cron block (not the git author).
+    # If only a bot edited this file, cron may never fire until a human with write access merges a cron change.
+    - cron: "5 * * * *"
+    - cron: "35 * * * *"
   workflow_dispatch:
 
 permissions:
