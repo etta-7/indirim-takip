@@ -75,11 +75,13 @@ export function scoreAkakceProductHref(href: string, pageUrl: string): number {
 
 export function pickBestAkakceProductLink(searchHtml: string, pageUrl: string): string | null {
   const hrefs = new Set<string>();
-  for (const m of searchHtml.matchAll(/href="(\/[^"]+,\d+\.html)"/g)) {
+  const linkRe = /href="(\/[^"]+,\d+\.html)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = linkRe.exec(searchHtml)) !== null) {
     hrefs.add(m[1]);
   }
   let best: { href: string; score: number } | null = null;
-  for (const href of hrefs) {
+  for (const href of Array.from(hrefs)) {
     const score = scoreAkakceProductHref(href, pageUrl);
     if (score <= 0) continue;
     if (!best || score > best.score) best = { href, score };
