@@ -98,7 +98,7 @@ export async function productDbStats(
         COUNT(*) > 0
         AND (
           MAX(last_checked_at) IS NULL
-          OR MAX(last_checked_at) < NOW() - (${staleSeconds} * INTERVAL '1 second')
+          OR EXTRACT(EPOCH FROM (NOW() - MAX(last_checked_at))) >= ${staleSeconds}
         )
       ) AS check_stale
     FROM products
@@ -107,8 +107,15 @@ export async function productDbStats(
   return {
     count: Number(row?.c ?? 0),
     latestCheck: formatTimestamptz(row?.t),
-    checkStale: Boolean(row?.check_stale),
+    checkStale: pgBool(row?.check_stale),
   };
+}
+
+function pgBool(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  const s = String(value).toLowerCase();
+  return s === "t" || s === "true";
 }
 
 function formatTimestamptz(value: unknown): string | null {
