@@ -23,6 +23,41 @@ export async function listProducts(): Promise<Product[]> {
   return rows.map((r) => rowToProduct(r as Record<string, unknown>));
 }
 
+/** Fallback when pooled SELECT * sporadically returns zero rows while COUNT(*) > 0 on Neon. */
+export async function listProductsResilient(): Promise<Product[]> {
+  const primary = await listProducts();
+  if (primary.length > 0) return primary;
+
+  const { rows: idRows } = await sql`SELECT id FROM products ORDER BY id`;
+  if (idRows.length > 0) {
+    const loaded: Product[] = [];
+    for (const row of idRows) {
+      const id = Number((row as { id: unknown }).id);
+      if (!Number.isFinite(id)) continue;
+      const p = await getProduct(id);
+      if (p) loaded.push(p);
+    }
+    if (loaded.length > 0) return loaded;
+  }
+
+  const { rows } = await sql`
+    SELECT
+      id,
+      url,
+      site,
+      title,
+      target_price,
+      last_price,
+      last_checked_at,
+      notify_cooldown_until,
+      target_drop_percent,
+      baseline_price
+    FROM products
+    ORDER BY id
+  `;
+  return rows.map((r) => rowToProduct(r as Record<string, unknown>));
+}
+
 export async function getProduct(id: number): Promise<Product | null> {
   const { rows } = await sql`SELECT * FROM products WHERE id = ${id}`;
   if (!rows.length) return null;
