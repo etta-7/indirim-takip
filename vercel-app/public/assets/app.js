@@ -294,12 +294,18 @@ formAdd.addEventListener("submit", async (ev) => {
   if (target_drop_percent != null) body.target_drop_percent = target_drop_percent;
   // Her iki alan boşsa yalnızca URL ile ekleme dene (sunucu kuralları geçerli).
   try {
-    await api("/api/products", {
+    const data = await api("/api/products", {
       method: "POST",
       body: JSON.stringify(body),
     });
     formAdd.reset();
-    showToast("Ürün eklendi.");
+    const priceNote =
+      data.last_price != null ? ` Güncel fiyat: ${data.last_price} TL.` : "";
+    showToast(
+      (data.scrape_warning
+        ? `Ürün eklendi — ${data.scrape_warning}`
+        : `Ürün eklendi.${priceNote}`) || "Ürün eklendi."
+    );
     await loadProducts();
   } catch (e) {
     showToast(e.message || "Eklenemedi.");
