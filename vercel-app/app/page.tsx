@@ -11,9 +11,19 @@ export default function HomePage() {
               Yükleniyor…
             </p>
           </div>
-          <button type="button" className="btn btn--primary btn--check" id="btn-check">
-            Şimdi kontrol et
-          </button>
+          <div className="top-bar__actions">
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm btn--theme"
+              id="btn-theme"
+              aria-pressed="false"
+            >
+              Koyu
+            </button>
+            <button type="button" className="btn btn--primary btn--check" id="btn-check">
+              Şimdi kontrol et
+            </button>
+          </div>
         </header>
 
         <section className="panel panel--add" aria-labelledby="add-heading">
@@ -121,7 +131,7 @@ export default function HomePage() {
       </dialog>
 
       <div id="toast" className="toast" role="status" hidden />
-      <Script src="/assets/app.js?v=4" strategy="afterInteractive" />
+      <Script src="/assets/app.js?v=5" strategy="afterInteractive" />
     </>
   );
 }

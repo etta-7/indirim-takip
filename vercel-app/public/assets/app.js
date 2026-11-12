@@ -1,4 +1,5 @@
 const STORAGE_KEY = "indirim_takip_dashboard_token";
+const THEME_KEY = "indirim_takip_theme";
 
 const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
@@ -21,6 +22,45 @@ function setToken(value) {
   } else {
     localStorage.removeItem(STORAGE_KEY);
   }
+}
+
+function getStoredTheme() {
+  const t = localStorage.getItem(THEME_KEY);
+  return t === "light" || t === "dark" ? t : null;
+}
+
+function resolveTheme() {
+  const stored = getStoredTheme();
+  if (stored) return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  const resolved = theme === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", resolved);
+  const btn = $("#btn-theme");
+  if (btn) {
+    const isDark = resolved === "dark";
+    btn.setAttribute("aria-pressed", isDark ? "true" : "false");
+    btn.setAttribute(
+      "aria-label",
+      isDark ? "Açık temaya geç" : "Koyu temaya geç"
+    );
+    btn.textContent = isDark ? "Açık" : "Koyu";
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute("content", resolved === "dark" ? "#1c2623" : "#0f4c3a");
+  }
+}
+
+function toggleTheme() {
+  const next =
+    document.documentElement.getAttribute("data-theme") === "dark"
+      ? "light"
+      : "dark";
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
 }
 
 function headers() {
@@ -332,6 +372,24 @@ $("#btn-refresh").addEventListener("click", () => {
   loadProducts().catch((e) => showToast(e.message));
 });
 $("#btn-settings").addEventListener("click", openTokenDialog);
+
+const btnTheme = $("#btn-theme");
+if (btnTheme) {
+  applyTheme(
+    document.documentElement.getAttribute("data-theme") || resolveTheme()
+  );
+  btnTheme.addEventListener("click", toggleTheme);
+}
+
+const themeMedia = window.matchMedia("(prefers-color-scheme: dark)");
+function onSystemThemeChange(e) {
+  if (!getStoredTheme()) applyTheme(e.matches ? "dark" : "light");
+}
+if (typeof themeMedia.addEventListener === "function") {
+  themeMedia.addEventListener("change", onSystemThemeChange);
+} else if (typeof themeMedia.addListener === "function") {
+  themeMedia.addListener(onSystemThemeChange);
+}
 
 if (getToken()) {
   initApp()
