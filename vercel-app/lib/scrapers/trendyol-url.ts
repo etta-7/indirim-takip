@@ -1,6 +1,6 @@
 /** Trendyol product URL / deeplink helpers. */
 
-const PRODUCT_ID_IN_PATH = /(?:^|[/?&-])p-(\d{6,})/i;
+const PATH_CONTENT_IDS = /-p-(\d{6,})/gi;
 
 export function isTrendyolUrl(url: string): boolean {
   const u = url.trim().toLowerCase();
@@ -16,15 +16,30 @@ export function isTrendyolUrl(url: string): boolean {
   }
 }
 
+function lastPathContentId(pathOrUrl: string): number | null {
+  let last: string | null = null;
+  const re = new RegExp(PATH_CONTENT_IDS.source, PATH_CONTENT_IDS.flags);
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(pathOrUrl)) !== null) {
+    last = m[1];
+  }
+  return last != null ? parseInt(last, 10) : null;
+}
+
 export function extractTrendyolContentId(url: string): number | null {
   const u = url.trim();
   const fromDeeplink = u.match(/ContentId=(\d{6,})/i);
   if (fromDeeplink) return parseInt(fromDeeplink[1], 10);
   const fromQuery = u.match(/[?&]contentId=(\d{6,})/i);
   if (fromQuery) return parseInt(fromQuery[1], 10);
-  const fromPath = u.match(PRODUCT_ID_IN_PATH);
-  if (fromPath) return parseInt(fromPath[1], 10);
-  return null;
+  try {
+    const parsed = new URL(u.includes("://") ? u : `https://www.trendyol.com${u.startsWith("/") ? u : `/${u}`}`);
+    const fromPath = lastPathContentId(parsed.pathname);
+    if (fromPath != null) return fromPath;
+  } catch {
+    /* ignore */
+  }
+  return lastPathContentId(u.split(/[?#]/)[0] ?? u);
 }
 
 export function canonicalTrendyolProductUrl(contentId: number): string {

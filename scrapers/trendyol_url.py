@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlparse
 
-PRODUCT_ID_IN_PATH = re.compile(r"(?:^|[/?&-])p-(\d{6,})", re.I)
+PATH_CONTENT_IDS = re.compile(r"-p-(\d{6,})", re.I)
 CONTENT_ID_DEEPLINK = re.compile(r"ContentId=(\d{6,})", re.I)
 CONTENT_ID_QUERY = re.compile(r"[?&]contentId=(\d{6,})", re.I)
 
@@ -25,6 +25,13 @@ def is_trendyol_url(url: str) -> bool:
         return False
 
 
+def _last_path_content_id(segment: str) -> int | None:
+    matches = PATH_CONTENT_IDS.findall(segment)
+    if not matches:
+        return None
+    return int(matches[-1])
+
+
 def extract_trendyol_content_id(url: str) -> int | None:
     u = url.strip()
     m = CONTENT_ID_DEEPLINK.search(u)
@@ -33,10 +40,15 @@ def extract_trendyol_content_id(url: str) -> int | None:
     m = CONTENT_ID_QUERY.search(u)
     if m:
         return int(m.group(1))
-    m = PRODUCT_ID_IN_PATH.search(u)
-    if m:
-        return int(m.group(1))
-    return None
+    try:
+        parsed = urlparse(u if "://" in u else f"https://www.trendyol.com{u if u.startswith('/') else '/' + u}")
+        from_path = _last_path_content_id(parsed.path)
+        if from_path is not None:
+            return from_path
+    except ValueError:
+        pass
+    path_only = u.split("?", 1)[0].split("#", 1)[0]
+    return _last_path_content_id(path_only)
 
 
 def canonical_trendyol_product_url(content_id: int) -> str:

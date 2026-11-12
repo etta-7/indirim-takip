@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -36,37 +36,85 @@ def trendyol_request_headers(referer: str | None = None) -> dict[str, str]:
     }
 
 
+def _numeric_price(value: object) -> float | None:
+    if isinstance(value, (int, float)) and value > 0:
+        return float(value)
+    if isinstance(value, dict) and value.get("value") is not None:
+        val = float(value["value"])
+        if val > 0:
+            return val
+    return None
+
+
+def _pick_price_from_result(res: dict) -> float | None:
+    price_block = res.get("price")
+    if isinstance(price_block, dict):
+        for key in ("discountedPrice", "sellingPrice", "originalPrice", "salePrice", "buyingPrice"):
+            p = _numeric_price(price_block.get(key))
+            if p is not None:
+                return p
+        current = price_block.get("current")
+        if isinstance(current, (int, float)) and current > 0:
+            return float(current)
+    for key in ("lowestPrice", "price"):
+        p = _numeric_price(res.get(key))
+        if p is not None:
+            return p
+    listings = res.get("merchantListing")
+    if isinstance(listings, dict) and isinstance(listings.get("price"), dict):
+        p = _pick_price_from_result({"price": listings["price"]})
+        if p is not None:
+            return p
+    return None
+
+
 def parse_api_payload(body: dict) -> PriceResult:
     res = body.get("result")
     if not isinstance(res, dict):
         raise ValueError("Trendyol API yanıtı geçersiz")
     title = str(res.get("name") or "Trendyol ürün")
-    price: float | None = None
-    price_block = res.get("price")
-    if isinstance(price_block, dict):
-        for key in ("discountedPrice", "sellingPrice", "originalPrice"):
-            block = price_block.get(key)
-            if isinstance(block, dict) and block.get("value") is not None:
-                val = float(block["value"])
-                if val > 0:
-                    price = val
-                    break
+    price = _pick_price_from_result(res)
     if price is None:
         raise ValueError("Trendyol fiyat bulunamadı")
     return PriceResult(title=title, price=price)
 
 
-def fetch_via_api(content_id: int, user_agent: str, timeout: float = 15.0) -> PriceResult:
-    qs = urlencode(
-        {
-            "sav": "false",
-            "storefrontId": "1",
-            "culture": "tr-TR",
-            "linearVariants": "true",
-            "isLegalRequirementConfirmed": "false",
-        }
+def _listing_params(page_url: str | None) -> dict[str, str]:
+    if not page_url:
+        return {}
+    try:
+        parsed = urlparse(page_url)
+        out: dict[str, str] = {}
+        q = parse_qs(parsed.query)
+        if q.get("merchantId"):
+            out["merchantId"] = q["merchantId"][0]
+        if q.get("boutiqueId"):
+            out["boutiqueId"] = q["boutiqueId"][0]
+        return out
+    except ValueError:
+        return {}
+
+
+def fetch_via_api(
+    content_id: int,
+    user_agent: str,
+    page_url: str | None = None,
+    timeout: float = 15.0,
+) -> PriceResult:
+    params = {
+        "sav": "false",
+        "storefrontId": "1",
+        "culture": "tr-TR",
+        "linearVariants": "true",
+        "isLegalRequirementConfirmed": "false",
+        **_listing_params(page_url),
+    }
+    qs = urlencode(params)
+    referer = (
+        page_url
+        if page_url and is_trendyol_url(page_url)
+        else canonical_trendyol_product_url(content_id)
     )
-    referer = canonical_trendyol_product_url(content_id)
     headers = {"User-Agent": user_agent, **trendyol_request_headers(referer)}
     resp = requests.get(f"{API_BASE}/{content_id}?{qs}", headers=headers, timeout=timeout)
     resp.raise_for_status()
@@ -139,9 +187,19 @@ def parse_html(html: str) -> PriceResult:
                     break
 
     if price is None:
-        m = re.search(r'"sellingPrice"\s*:\s*([\d.]+)', html)
-        if m:
-            price = float(m.group(1))
+        patterns = (
+            r'"discountedPrice"\s*:\s*\{[^}]*"value"\s*:\s*([\d.]+)',
+            r'"sellingPrice"\s*:\s*\{[^}]*"value"\s*:\s*([\d.]+)',
+            r'"sellingPrice"\s*:\s*([\d.]+)',
+            r'"discountedPrice"\s*:\s*([\d.]+)',
+        )
+        for pat in patterns:
+            m = re.search(pat, html)
+            if m:
+                val = float(m.group(1))
+                if val > 0:
+                    price = val
+                    break
 
     if price is None:
         raise ValueError("Trendyol fiyat bulunamadı")
@@ -151,14 +209,13 @@ def parse_html(html: str) -> PriceResult:
 
 def fetch_price(url: str, user_agent: str) -> PriceResult:
     resolved = resolve_product_url(url, user_agent)
-    content_id = extract_trendyol_content_id(resolved)
+    page_url = resolved if is_trendyol_url(resolved) else url
+    content_id = extract_trendyol_content_id(page_url)
     if content_id is not None:
         try:
-            return fetch_via_api(content_id, user_agent)
+            return fetch_via_api(content_id, user_agent, page_url)
         except (requests.RequestException, ValueError):
             pass
-
-    page_url = resolved if is_trendyol_url(resolved) else url
     headers = {
         "User-Agent": user_agent,
         "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
