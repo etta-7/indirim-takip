@@ -24,6 +24,7 @@ from config import Settings
 from db import ProductRepository, UserSessionRepository
 from price_checker import PriceChecker, format_percent, format_price
 from scrapers.base import detect_site
+from scrapers.trendyol import resolve_product_url
 from scrapers.search import (
     SEARCH_LIMIT,
     SITE_ALIASES,
@@ -142,6 +143,7 @@ async def _finalize_add(
     user_id: int,
     url: str,
     target: float,
+    settings: Settings,
     *,
     title_hint: str | None = None,
     target_drop_percent: float | None = None,
@@ -152,7 +154,8 @@ async def _finalize_add(
             "En az bir uyarı eşiği gerekli (TL hedefi veya yüzde, örn. 10%)."
         )
         return
-    site = detect_site(url)
+    resolved_url = resolve_product_url(url, settings.http_user_agent)
+    site = detect_site(resolved_url)
     if site == "unknown":
         await update.effective_message.reply_text(
             "URL tanınamadı. Trendyol, Hepsiburada, Akakçe veya Cimri linki gerekli."
@@ -160,7 +163,7 @@ async def _finalize_add(
         return
     try:
         product = repo.add_product(
-            url,
+            resolved_url,
             site,
             target,
             target_drop_percent=target_drop_percent,
@@ -329,6 +332,7 @@ def build_handlers(
                     user_id,
                     url,
                     NO_ABSOLUTE_TARGET,
+                    settings,
                     target_drop_percent=drop_pct,
                 )
                 return
@@ -353,6 +357,7 @@ def build_handlers(
                 user_id,
                 url,
                 target,
+                settings,
                 target_drop_percent=drop_pct,
             )
             return
@@ -541,6 +546,7 @@ def build_handlers(
                 user_id,
                 url,
                 target,
+                settings,
                 title_hint=title,
                 target_drop_percent=drop_pct,
                 baseline_price=listing_price,
@@ -574,6 +580,7 @@ def build_handlers(
             user_id,
             sess.pending_url,
             target,
+            settings,
             title_hint=sess.pending_title,
             target_drop_percent=drop_pct,
         )

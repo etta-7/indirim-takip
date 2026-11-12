@@ -1,18 +1,20 @@
 import * as cheerio from "cheerio";
-import { parseTrendyol } from "./trendyol";
 import { parseHepsiburada } from "./hepsiburada";
 import { parseAkakce } from "./akakce";
 import { parseCimri } from "./cimri";
+import { parseTrendyol } from "./trendyol";
+import { fetchTrendyolPrice, resolveProductUrl } from "./trendyol-fetch";
+import { isTrendyolUrl } from "./trendyol-url";
 import type { PriceResult } from "./pricing";
 
 const PARSERS: Record<string, (html: string) => PriceResult> = {
-  trendyol: parseTrendyol,
   hepsiburada: parseHepsiburada,
   akakce: parseAkakce,
   cimri: parseCimri,
 };
 
 export function detectSite(url: string): string {
+  if (isTrendyolUrl(url)) return "trendyol";
   const u = url.toLowerCase();
   if (u.includes("trendyol")) return "trendyol";
   if (u.includes("hepsiburada")) return "hepsiburada";
@@ -30,7 +32,12 @@ export function detectSite(url: string): string {
   return "unknown";
 }
 
-export async function fetchHtml(url: string, userAgent: string, timeoutMs = 15000): Promise<string> {
+export async function fetchHtml(
+  url: string,
+  userAgent: string,
+  timeoutMs = 15000,
+  extraHeaders: Record<string, string> = {}
+): Promise<string> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -39,6 +46,7 @@ export async function fetchHtml(url: string, userAgent: string, timeoutMs = 1500
         "User-Agent": userAgent,
         "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
         Accept: "text/html,application/xhtml+xml",
+        ...extraHeaders,
       },
       signal: controller.signal,
     });
@@ -50,17 +58,28 @@ export async function fetchHtml(url: string, userAgent: string, timeoutMs = 1500
 }
 
 export async function fetchPrice(url: string, userAgent: string): Promise<PriceResult> {
-  const site = detectSite(url);
-  if (site === "unknown" || !PARSERS[site]) {
+  const resolved = await resolveProductUrl(url, userAgent);
+  const site = detectSite(resolved);
+  if (site === "unknown") {
     throw new Error(`Desteklenmeyen veya tanınamayan URL: ${url}`);
   }
-  const html = await fetchHtml(url, userAgent);
-  const result = PARSERS[site](html);
+  if (site === "trendyol") {
+    const result = await fetchTrendyolPrice(resolved, userAgent);
+    if (result.price <= 0) throw new Error(`Fiyat okunamadı: ${url}`);
+    return result;
+  }
+  const parser = PARSERS[site];
+  if (!parser) throw new Error(`Desteklenmeyen veya tanınamayan URL: ${url}`);
+  const html = await fetchHtml(resolved, userAgent);
+  const result = parser(html);
   if (result.price <= 0) throw new Error(`Fiyat okunamadı: ${url}`);
   return result;
 }
 
+export { resolveProductUrl } from "./trendyol-fetch";
+
 export function parseHtmlForSite(site: string, html: string): PriceResult {
+  if (site === "trendyol") return parseTrendyol(html);
   const parser = PARSERS[site];
   if (!parser) throw new Error(`Bilinmeyen site: ${site}`);
   return parser(html);
