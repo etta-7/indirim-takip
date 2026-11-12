@@ -1,5 +1,5 @@
 import { sql } from "@vercel/postgres";
-import { latestCheckTime, listProducts } from "./db/products";
+import { latestCheckTime, listProducts, productDbStats } from "./db/products";
 import { checkAllPrices } from "./price-checker";
 
 const LOCK_KEY = 9142277;
@@ -26,10 +26,14 @@ function ageMs(iso: string | null): number {
 export async function runCheckIfStale(
   maxAgeMs = DEFAULT_MAX_AGE_MS
 ): Promise<StaleCheckResult> {
-  const products = await listProducts();
-  const product_count = products.length;
+  const stats = await productDbStats();
+  const product_count = stats.count;
   if (product_count === 0) {
     return { status: "skipped", product_count: 0 };
+  }
+  const products = await listProducts();
+  if (products.length === 0) {
+    return { status: "skipped", product_count };
   }
 
   const latest = await latestCheckTime();

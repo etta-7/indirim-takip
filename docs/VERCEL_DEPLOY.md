@@ -2,6 +2,8 @@
 
 Oracle VM veya uzun süreli Python polling gerekmez. Uygulama `vercel-app/` altındaki Next.js 14 projesidir: web paneli, Telegram webhook, Vercel Cron ile fiyat kontrolü ve Vercel Postgres.
 
+**Canlı panel ve `GET /api/health` aynı Postgres’i kullanır.** Production panel: `https://indirim-takip-two.vercel.app` — `DASHBOARD_TOKEN` yalnızca Vercel env’dekindir. Eski Oracle VM / Cloudflare tünel paneli (`8787`, SQLite) ayrı veritabanıdır; oraya eklenen ürünler Vercel health’te görünmez.
+
 ## 0. Ön koşul
 
 Vercel hesabı GitHub’a bağlı (etta-7). **Hobby** planda Vercel Cron günde en fazla **bir** kez çalışabilir; repo’da `vercel-app/vercel.json` yalnızca günlük yedek cron içerir (`0 8 * * *`). **30 dakikalık** kontroller için GitHub Actions veya Oracle timer: [`docs/EXTERNAL_CRON.md`](EXTERNAL_CRON.md).
