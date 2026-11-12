@@ -8,8 +8,8 @@ export const maxDuration = 300;
 
 /** Public liveness probe; runs a price check when the last DB check is stale (≈28m). Safe for cron-job.org / uptime pings without CRON_SECRET. */
 export async function GET() {
-  const db = await productDbStats();
   const stale = await runCheckIfStale();
+  const db = await productDbStats();
   const latest_check = db.count > 0 ? db.latestCheck : null;
   const product_count = db.count;
   return NextResponse.json({

@@ -1,5 +1,5 @@
 import { sql } from "@vercel/postgres";
-import { latestCheckTime, listProducts, productDbStats } from "./db/products";
+import { listProducts, productDbStats } from "./db/products";
 import { checkAllPrices } from "./price-checker";
 
 const LOCK_KEY = 9142277;
@@ -15,29 +15,16 @@ export type StaleCheckResult = {
   check_duration_ms?: number;
 };
 
-function ageMs(iso: string | null): number {
-  if (!iso) return Number.POSITIVE_INFINITY;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return Number.POSITIVE_INFINITY;
-  return Date.now() - t;
-}
-
 /** Run price check when last DB check is older than maxAgeMs (serverless-safe advisory lock). */
 export async function runCheckIfStale(
   maxAgeMs = DEFAULT_MAX_AGE_MS
 ): Promise<StaleCheckResult> {
-  const stats = await productDbStats();
+  const stats = await productDbStats(maxAgeMs);
   const product_count = stats.count;
   if (product_count === 0) {
     return { status: "skipped", product_count: 0 };
   }
-  const products = await listProducts();
-  if (products.length === 0) {
-    return { status: "skipped", product_count };
-  }
-
-  const latest = await latestCheckTime();
-  if (ageMs(latest) < maxAgeMs) {
+  if (!stats.checkStale) {
     return { status: "skipped", product_count };
   }
 
@@ -48,15 +35,16 @@ export async function runCheckIfStale(
   }
 
   try {
-    const stillLatest = await latestCheckTime();
-    if (ageMs(stillLatest) < maxAgeMs) {
-      return { status: "skipped", product_count };
+    const still = await productDbStats(maxAgeMs);
+    if (!still.checkStale) {
+      return { status: "skipped", product_count: still.count };
     }
+    const products = await listProducts();
     const t0 = Date.now();
     const { ok, failed } = await checkAllPrices(products);
     return {
       status: "ran",
-      product_count,
+      product_count: products.length || still.count,
       check_ok: ok,
       check_failed: failed,
       check_duration_ms: Date.now() - t0,

@@ -62,18 +62,52 @@ export async function countProducts(): Promise<number> {
   return Number(rows[0]?.c ?? 0);
 }
 
-/** Single-query count + latest check (same snapshot — avoids mismatched health fields). */
-export async function productDbStats(): Promise<{
+export type ProductDbStats = {
   count: number;
   latestCheck: string | null;
-}> {
-  const { rows } = await sql`
-    SELECT COUNT(*)::int AS c, MAX(last_checked_at) AS t FROM products
+  /** True when count > 0 and MAX(last_checked_at) is null or older than maxAgeMs (uses Postgres NOW()). */
+  checkStale: boolean;
+};
+
+const DEFAULT_STALE_MS = 28 * 60 * 1000;
+
+/** Same as SQL staleness predicate — for tests and docs. */
+export function isCheckStale(
+  count: number,
+  latestCheck: string | null,
+  maxAgeMs: number,
+  nowMs: number = Date.now()
+): boolean {
+  if (count <= 0) return false;
+  if (latestCheck == null) return true;
+  const t = new Date(latestCheck).getTime();
+  if (Number.isNaN(t)) return true;
+  return nowMs - t >= maxAgeMs;
+}
+
+/** Single-query count, latest check, and staleness (one snapshot — avoids mismatched health fields). */
+export async function productDbStats(
+  maxAgeMs = DEFAULT_STALE_MS
+): Promise<ProductDbStats> {
+  const staleSeconds = Math.max(1, Math.floor(maxAgeMs / 1000));
+  const { rows: statsRows } = await sql`
+    SELECT
+      COUNT(*)::int AS c,
+      MAX(last_checked_at) AS t,
+      (
+        COUNT(*) > 0
+        AND (
+          MAX(last_checked_at) IS NULL
+          OR MAX(last_checked_at) < NOW() - (${staleSeconds} * INTERVAL '1 second')
+        )
+      ) AS check_stale
+    FROM products
   `;
-  const row = rows[0] as Record<string, unknown> | undefined;
+  const row = statsRows[0] as Record<string, unknown> | undefined;
   return {
     count: Number(row?.c ?? 0),
     latestCheck: formatTimestamptz(row?.t),
+    checkStale: Boolean(row?.check_stale),
   };
 }
 
