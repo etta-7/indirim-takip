@@ -4,8 +4,8 @@ import {
   shouldAlertAbsolute,
   shouldAlertPercentDrop,
 } from "./alert-rules";
-import { listProducts, updateAfterCheck } from "./db/products";
 import type { Product } from "./db/types";
+import { listProducts, updateAfterCheck } from "./db/products";
 import { formatPercent, formatPrice } from "./format";
 import { getHttpUserAgent, getTelegramChatId, telegramConfigured } from "./env";
 import { fetchPrice } from "./scrapers/base";
@@ -108,9 +108,9 @@ async function checkProduct(product: Product, userAgent: string): Promise<void> 
   });
 }
 
-export async function checkAllPrices(): Promise<{ ok: number; failed: number }> {
+export async function checkAllPrices(existing?: Product[]): Promise<{ ok: number; failed: number }> {
   const userAgent = getHttpUserAgent();
-  const products = await listProducts();
+  const products = existing ?? (await listProducts());
   let ok = 0;
   let failed = 0;
   for (const product of products) {

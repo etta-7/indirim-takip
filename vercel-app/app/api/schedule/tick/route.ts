@@ -11,7 +11,14 @@ export async function POST(req: NextRequest) {
   if (!requireDashboardToken(req)) {
     return NextResponse.json({ detail: "Geçersiz veya eksik panel anahtarı." }, { status: 401 });
   }
-  const result = await runCheckIfStale();
+  const stale = await runCheckIfStale();
   const latest_check = await latestCheckTime();
-  return NextResponse.json({ result, latest_check });
+  return NextResponse.json({
+    result: stale.status,
+    latest_check,
+    product_count: stale.product_count,
+    check_ok: stale.check_ok,
+    check_failed: stale.check_failed,
+    check_duration_ms: stale.check_duration_ms,
+  });
 }
