@@ -8,7 +8,9 @@ from scrapers.pricing import PriceResult, extract_json_ld_price, extract_meta_pr
 
 
 def url_matches(url: str) -> bool:
-    return "hepsiburada.com" in url.lower()
+    from scrapers.hepsiburada_url import is_hepsiburada_url
+
+    return is_hepsiburada_url(url)
 
 
 def parse_html(html: str) -> PriceResult:

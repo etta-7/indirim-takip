@@ -23,3 +23,7 @@ def test_detect_trendyol_deeplink():
 
 def test_detect_hepsiburada():
     assert detect_site("https://www.hepsiburada.com/urun") == "hepsiburada"
+
+
+def test_detect_hepsiburada_hb_biz():
+    assert detect_site("https://hb.biz/HBV00000Y1NON") == "hepsiburada"

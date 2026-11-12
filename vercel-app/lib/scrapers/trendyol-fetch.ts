@@ -1,6 +1,7 @@
 import { fetchHtml } from "./base";
 import { parseTrendyol } from "./trendyol";
 import { fetchTrendyolViaAkakce } from "./trendyol-akakce-fallback";
+import { isHepsiburadaShortUrl } from "./hepsiburada-url";
 import {
   canonicalTrendyolProductUrl,
   extractTrendyolContentId,
@@ -163,7 +164,11 @@ export async function fetchTrendyolApi(
   throw new Error(errors.join("; ") || "Trendyol API başarısız");
 }
 
-export async function resolveRedirects(url: string, userAgent: string, max = 6): Promise<string> {
+export async function resolveRedirects(
+  url: string,
+  userAgent: string,
+  max = 6
+): Promise<string> {
   let current = url;
   for (let i = 0; i < max; i++) {
     const controller = new AbortController();
@@ -201,6 +206,13 @@ export async function resolveProductUrl(url: string, userAgent: string): Promise
     return normalizeTrendyolUrl(u);
   }
   if (/ty\.gl\//i.test(u)) {
+    try {
+      u = await resolveRedirects(u, userAgent);
+    } catch {
+      /* keep original */
+    }
+  }
+  if (isHepsiburadaShortUrl(u)) {
     try {
       u = await resolveRedirects(u, userAgent);
     } catch {

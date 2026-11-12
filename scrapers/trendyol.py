@@ -7,6 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scrapers.pricing import PriceResult, extract_json_ld_price, extract_meta_price, parse_price_text
+from scrapers.hepsiburada_url import is_hepsiburada_short_url
 from scrapers.trendyol_url import (
     canonical_trendyol_product_url,
     extract_trendyol_content_id,
@@ -149,6 +150,11 @@ def resolve_product_url(url: str, user_agent: str) -> str:
     if u.startswith("ty://"):
         return normalize_trendyol_url(u)
     if re.search(r"ty\.gl/", u, re.I):
+        try:
+            u = resolve_redirects(u, user_agent)
+        except requests.RequestException:
+            pass
+    if is_hepsiburada_short_url(u):
         try:
             u = resolve_redirects(u, user_agent)
         except requests.RequestException:
