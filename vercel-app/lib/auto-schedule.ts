@@ -13,7 +13,18 @@ export type StaleCheckResult = {
   check_ok?: number;
   check_failed?: number;
   check_duration_ms?: number;
+  /** MAX(last_checked_at) from a fresh product list after a run (when reads lag behind writes). */
+  latest_check?: string | null;
 };
+
+function maxLastCheckedAt(products: { last_checked_at: string | null }[]): string | null {
+  let latest: string | null = null;
+  for (const p of products) {
+    if (!p.last_checked_at) continue;
+    if (!latest || p.last_checked_at > latest) latest = p.last_checked_at;
+  }
+  return latest;
+}
 
 /** Run price check when last DB check is older than maxAgeMs (serverless-safe advisory lock). */
 export async function runCheckIfStale(
@@ -48,12 +59,14 @@ export async function runCheckIfStale(
     }
     const t0 = Date.now();
     const { ok, failed } = await checkAllPrices(products);
+    const reloaded = await listProductsResilient();
     return {
       status: "ran",
       product_count: products.length,
       check_ok: ok,
       check_failed: failed,
       check_duration_ms: Date.now() - t0,
+      latest_check: maxLastCheckedAt(reloaded),
     };
   } finally {
     await sql`SELECT pg_advisory_unlock(${LOCK_KEY})`;

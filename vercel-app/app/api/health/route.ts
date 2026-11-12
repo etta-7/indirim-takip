@@ -10,7 +10,14 @@ export const maxDuration = 300;
 export async function GET() {
   const stale = await runCheckIfStale();
   const db = await productDbStats();
-  const latest_check = db.count > 0 ? db.latestCheck : null;
+  let latest_check = db.count > 0 ? db.latestCheck : null;
+  if (stale.latest_check && (!latest_check || stale.latest_check > latest_check)) {
+    latest_check = stale.latest_check;
+  }
+  if (stale.status === "ran" && (stale.check_ok ?? 0) > 0) {
+    const nowIso = new Date().toISOString();
+    if (!latest_check || nowIso > latest_check) latest_check = nowIso;
+  }
   const product_count = db.count;
   return NextResponse.json({
     ok: true,
