@@ -1,5 +1,5 @@
 import { sql } from "@vercel/postgres";
-import { listProducts, productDbStats } from "./db/products";
+import { listProductsResilient, productDbStats } from "./db/products";
 import { checkAllPrices } from "./price-checker";
 
 const LOCK_KEY = 9142277;
@@ -39,12 +39,18 @@ export async function runCheckIfStale(
     if (!still.checkStale) {
       return { status: "skipped", product_count: still.count };
     }
-    const products = await listProducts();
+    const products = await listProductsResilient();
+    if (products.length === 0) {
+      console.error(
+        `runCheckIfStale: stats.count=${still.count} but product list is empty after resilient load`
+      );
+      return { status: "skipped", product_count: still.count };
+    }
     const t0 = Date.now();
     const { ok, failed } = await checkAllPrices(products);
     return {
       status: "ran",
-      product_count: products.length || still.count,
+      product_count: products.length,
       check_ok: ok,
       check_failed: failed,
       check_duration_ms: Date.now() - t0,
