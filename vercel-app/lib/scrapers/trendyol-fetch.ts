@@ -1,7 +1,7 @@
 import { fetchHtml } from "./base";
 import { parseTrendyol } from "./trendyol";
 import { fetchTrendyolViaAkakce } from "./trendyol-akakce-fallback";
-import { isHepsiburadaShortUrl } from "./hepsiburada-url";
+import { isFailedHepsiburadaShortResolve, isHepsiburadaShortUrl } from "./hepsiburada-url";
 import {
   canonicalTrendyolProductUrl,
   extractTrendyolContentId,
@@ -213,10 +213,14 @@ export async function resolveProductUrl(url: string, userAgent: string): Promise
     }
   }
   if (isHepsiburadaShortUrl(u)) {
+    const short = u;
     try {
       u = await resolveRedirects(u, userAgent);
     } catch {
       /* keep original */
+    }
+    if (isFailedHepsiburadaShortResolve(u, short)) {
+      u = short;
     }
   }
   return normalizeTrendyolUrl(u);

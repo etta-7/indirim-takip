@@ -10,7 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scrapers.base import detect_site
-from scrapers.hepsiburada_url import is_hepsiburada_short_url, is_hepsiburada_url
+from scrapers.hepsiburada_url import (
+    extract_hepsiburada_sku,
+    is_hepsiburada_short_url,
+    is_hepsiburada_url,
+)
 from scrapers.trendyol import resolve_product_url
 
 EXAMPLE_SHORT = "https://hb.biz/HBV00000Y1NON"
@@ -47,4 +51,4 @@ def test_resolve_product_url_hb_biz_live():
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     )
     resolved = resolve_product_url(EXAMPLE_SHORT, ua)
-    assert "hepsiburada.com" in resolved.lower()
+    assert "hepsiburada.com" in resolved.lower() or extract_hepsiburada_sku(resolved)

@@ -3,6 +3,7 @@ import { parseHepsiburada } from "./hepsiburada";
 import { parseAkakce } from "./akakce";
 import { parseCimri } from "./cimri";
 import { parseTrendyol } from "./trendyol";
+import { fetchHepsiburadaPrice } from "./hepsiburada-fetch";
 import { fetchTrendyolPrice, resolveProductUrl } from "./trendyol-fetch";
 import { isHepsiburadaUrl } from "./hepsiburada-url";
 import { isTrendyolUrl } from "./trendyol-url";
@@ -67,6 +68,12 @@ export async function fetchPrice(url: string, userAgent: string): Promise<PriceR
   }
   if (site === "trendyol") {
     const result = await fetchTrendyolPrice(resolved, userAgent);
+    if (result.price <= 0) throw new Error(`Fiyat okunamadı: ${url}`);
+    return result;
+  }
+  if (site === "hepsiburada") {
+    const pageUrl = resolved.includes("hepsiburada.com") ? resolved : url;
+    const result = await fetchHepsiburadaPrice(userAgent, pageUrl);
     if (result.price <= 0) throw new Error(`Fiyat okunamadı: ${url}`);
     return result;
   }
