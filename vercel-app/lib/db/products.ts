@@ -62,6 +62,21 @@ export async function countProducts(): Promise<number> {
   return Number(rows[0]?.c ?? 0);
 }
 
+/** Single-query count + latest check (same snapshot — avoids mismatched health fields). */
+export async function productDbStats(): Promise<{
+  count: number;
+  latestCheck: string | null;
+}> {
+  const { rows } = await sql`
+    SELECT COUNT(*)::int AS c, MAX(last_checked_at) AS t FROM products
+  `;
+  const row = rows[0] as Record<string, unknown> | undefined;
+  return {
+    count: Number(row?.c ?? 0),
+    latestCheck: formatTimestamptz(row?.t),
+  };
+}
+
 function formatTimestamptz(value: unknown): string | null {
   if (value == null) return null;
   if (value instanceof Date) return value.toISOString();
