@@ -4,9 +4,26 @@ import {
   parsePercentToken,
   splitAlertArgs,
 } from "./alert-rules";
-import { addProduct } from "./db/products";
+import { addProduct, getProduct, updateAfterCheck } from "./db/products";
 import type { Product } from "./db/types";
-import { detectSite } from "./scrapers/base";
+import { detectSite, fetchPrice, resolveProductUrl } from "./scrapers/base";
+import { getHttpUserAgent } from "./env";
+
+export type AddProductOutcome = {
+  product: Product;
+  scrape_warning?: string;
+};
+
+function scrapeWarningFromSource(source: string | undefined, errMsg?: string): string | undefined {
+  if (errMsg) return errMsg;
+  if (source === "akakce-trendyol") {
+    return "Trendyol doğrudan erişilemedi; fiyat Akakçe Trendyol satıcısından alındı.";
+  }
+  if (source === "akakce-fallback") {
+    return "Trendyol erişimi engellendi; gösterilen fiyat Akakçe piyasa özetidir (Trendyol dışı satıcı olabilir).";
+  }
+  return undefined;
+}
 
 export type AddProductRequest = {
   url: string;
@@ -57,9 +74,12 @@ export function resolveTargets(
   return { target, drop };
 }
 
-export async function addProductFromRequest(req: AddProductRequest): Promise<Product | string> {
-  const url = req.url.trim();
-  if (!url) return "URL gerekli.";
+export async function addProductFromRequest(
+  req: AddProductRequest
+): Promise<AddProductOutcome | string> {
+  const raw = req.url.trim();
+  if (!raw) return "URL gerekli.";
+  const url = await resolveProductUrl(raw, getHttpUserAgent());
   const resolved = resolveTargets(req);
   if (typeof resolved === "string") return resolved;
   const { target, drop } = resolved;
@@ -67,14 +87,35 @@ export async function addProductFromRequest(req: AddProductRequest): Promise<Pro
   if (site === "unknown") {
     return "URL tanınamadı. Trendyol, Hepsiburada, Akakçe veya Cimri linki gerekli.";
   }
+  let product: Product;
   try {
-    return await addProduct(url, site, target, { target_drop_percent: drop });
+    product = await addProduct(url, site, target, { target_drop_percent: drop });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("unique") || msg.includes("duplicate")) {
       return "Bu URL zaten listede veya kayıt başarısız.";
     }
     throw e;
+  }
+  const userAgent = getHttpUserAgent();
+  try {
+    const quote = await fetchPrice(url, userAgent);
+    await updateAfterCheck(product.id, {
+      title: quote.title,
+      last_price: quote.price,
+      baseline_price: quote.price,
+    });
+    const fresh = (await getProduct(product.id)) ?? product;
+    return {
+      product: fresh,
+      scrape_warning: scrapeWarningFromSource(quote.priceSource),
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      product,
+      scrape_warning: `Fiyat şimdi alınamadı: ${msg}. «Şimdi kontrol et» ile tekrar deneyin.`,
+    };
   }
 }
 

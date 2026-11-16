@@ -1,0 +1,12 @@
+{
+  "isSuccess": true,
+  "result": {
+    "id": 789823466,
+    "name": "Test Trendyol Ürün",
+    "url": "/apple/iphone-p-789823466",
+    "price": {
+      "discountedPrice": { "value": 57249, "text": "57.249 TL" },
+      "sellingPrice": { "value": 59999, "text": "59.999 TL" }
+    }
+  }
+}

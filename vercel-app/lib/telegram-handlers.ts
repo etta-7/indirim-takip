@@ -13,8 +13,8 @@ import {
 } from "./db/products";
 import { formatPercent, formatPrice } from "./format";
 import { checkAllPrices, getLastRun } from "./price-checker";
-import { detectSite } from "./scrapers/base";
-import { getAllowedTelegramUserIds } from "./env";
+import { detectSite, resolveProductUrl } from "./scrapers/base";
+import { getAllowedTelegramUserIds, getHttpUserAgent } from "./env";
 import { sendTelegramMessage } from "./telegram-api";
 import { addProduct } from "./db/products";
 
@@ -68,7 +68,8 @@ async function finalizeAdd(
     await reply(chatId, "En az bir uyarı eşiği gerekli (TL hedefi veya yüzde, örn. 10%).");
     return;
   }
-  const site = detectSite(url);
+  const resolvedUrl = await resolveProductUrl(url, getHttpUserAgent());
+  const site = detectSite(resolvedUrl);
   if (site === "unknown") {
     await reply(
       chatId,
@@ -77,7 +78,7 @@ async function finalizeAdd(
     return;
   }
   try {
-    const product = await addProduct(url, site, target, {
+    const product = await addProduct(resolvedUrl, site, target, {
       target_drop_percent: opts.targetDropPercent ?? null,
       baseline_price: opts.baselinePrice ?? null,
     });

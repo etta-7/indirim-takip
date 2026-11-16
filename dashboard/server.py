@@ -102,7 +102,8 @@ def create_app() -> FastAPI:
             target_drop_percent=body.target_drop_percent,
             target_text=body.target_text,
         )
-        result = add_product(repo, req)
+        settings: DashboardSettings = request.app.state.settings
+        result = add_product(repo, req, settings.http_user_agent)
         if isinstance(result, str):
             raise HTTPException(status_code=400, detail=result)
         return product_to_dict(result)

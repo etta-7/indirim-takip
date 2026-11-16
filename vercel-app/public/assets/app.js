@@ -1,5 +1,6 @@
 const STORAGE_KEY = "indirim_takip_dashboard_token";
 const SORT_KEY = "indirim_takip_sort";
+const THEME_KEY = "indirim_takip_theme";
 const STALE_CHECK_MS = 28 * 60 * 1000;
 
 const $ = (sel) => document.querySelector(sel);
@@ -55,6 +56,37 @@ function safeSet(key, value) {
 
 const getToken = () => safeGet(STORAGE_KEY);
 const setToken = (v) => safeSet(STORAGE_KEY, String(v || "").trim());
+
+/* ---------- Tema ---------- */
+
+function getStoredTheme() {
+  const t = safeGet(THEME_KEY);
+  return t === "light" || t === "dark" ? t : null;
+}
+
+function resolveTheme() {
+  return getStoredTheme() || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+
+function applyTheme(theme) {
+  const resolved = theme === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", resolved);
+  const btn = document.querySelector("#btn-theme");
+  if (btn) {
+    const isDark = resolved === "dark";
+    btn.setAttribute("aria-pressed", String(isDark));
+    btn.setAttribute("aria-label", isDark ? "Açık temaya geç" : "Koyu temaya geç");
+    btn.textContent = isDark ? "Açık" : "Koyu";
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", resolved === "dark" ? "#18211e" : "#0f4c3a");
+}
+
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  safeSet(THEME_KEY, next);
+  applyTheme(next);
+}
 
 /* ---------- Helpers ---------- */
 
@@ -595,13 +627,19 @@ formAdd.addEventListener("submit", async (ev) => {
   const btn = $("#btn-add");
   setBusy(btn, true, "Ekleniyor…");
   try {
-    await api("/api/products", { method: "POST", body: JSON.stringify(body) });
+    const added = await api("/api/products", { method: "POST", body: JSON.stringify(body) });
     formAdd.reset();
     updateUrlHint();
     showAddError("");
     closeDialog(dialogAdd);
     await loadProducts();
-    showToast("Ürün takibe alındı. Fiyatı bir sonraki kontrolde görünecek.", "success", 4500);
+    if (added?.scrape_warning) {
+      showToast(`Ürün takibe alındı, ancak: ${added.scrape_warning}`, "warn", 6000);
+    } else if (added?.last_price != null) {
+      showToast(`Ürün takibe alındı. Güncel fiyat: ${formatTl(added.last_price)}.`, "success", 4500);
+    } else {
+      showToast("Ürün takibe alındı. Fiyatı bir sonraki kontrolde görünecek.", "success", 4500);
+    }
   } catch (e) {
     if (e instanceof AuthError) handleError(e);
     else showAddError(e.message || "Ürün eklenemedi.");
@@ -775,6 +813,17 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-open-add]")) openAddDialog();
 });
 
+/* ---------- Tema butonu ---------- */
+
+applyTheme(document.documentElement.getAttribute("data-theme") || resolveTheme());
+$("#btn-theme").addEventListener("click", toggleTheme);
+const themeMedia = window.matchMedia("(prefers-color-scheme: dark)");
+const onSystemThemeChange = (e) => {
+  if (!getStoredTheme()) applyTheme(e.matches ? "dark" : "light");
+};
+if (typeof themeMedia.addEventListener === "function") themeMedia.addEventListener("change", onSystemThemeChange);
+else if (typeof themeMedia.addListener === "function") themeMedia.addListener(onSystemThemeChange);
+
 /* ---------- Boot ---------- */
 
 if (getToken()) {
@@ -804,7 +853,7 @@ setInterval(() => {
 setInterval(() => {
   if (document.hidden || !getToken() || document.querySelector("dialog[open]")) return;
   loadProducts().catch(() => {});
-}, 2 * 60_000);
+}, 45_000);
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && getToken() && loadedOnce) {

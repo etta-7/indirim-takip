@@ -26,27 +26,25 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111816;
-    --bg-2: #0c1311;
-    --surface: #18211e;
-    --surface-2: #1e2925;
-    --ink: #e7eeeb;
-    --muted: #9aaba5;
-    --accent: #5fc79f;
-    --accent-ink: #08201a;
-    --accent-soft: #1f3a31;
-    --ok: #6ad39b;
-    --ok-soft: #173326;
-    --warn: #f0c062;
-    --warn-soft: #3a2e14;
-    --danger: #f28b8b;
-    --danger-soft: #3a1c1c;
-    --border: #2b3833;
-    --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  --bg: #111816;
+  --bg-2: #0c1311;
+  --surface: #18211e;
+  --surface-2: #1e2925;
+  --ink: #e7eeeb;
+  --muted: #9aaba5;
+  --accent: #5fc79f;
+  --accent-ink: #08201a;
+  --accent-soft: #1f3a31;
+  --ok: #6ad39b;
+  --ok-soft: #173326;
+  --warn: #f0c062;
+  --warn-soft: #3a2e14;
+  --danger: #f28b8b;
+  --danger-soft: #3a1c1c;
+  --border: #2b3833;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
 }
 
 *,
@@ -699,12 +697,10 @@ body {
   color: #fff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .toast--success,
-  .toast--error,
-  .toast--warn {
-    color: #111;
-  }
+:root[data-theme="dark"] .toast--success,
+:root[data-theme="dark"] .toast--error,
+:root[data-theme="dark"] .toast--warn {
+  color: #111;
 }
 
 @media (max-width: 360px) {
@@ -1065,4 +1061,12 @@ body {
 .status--stale {
   background: var(--warn-soft);
   color: var(--warn);
+}
+
+.dialog__text code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8125rem;
 }

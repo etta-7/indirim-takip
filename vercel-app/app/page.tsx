@@ -11,6 +11,16 @@ export default function HomePage() {
               <button
                 type="button"
                 className="icon-btn"
+                id="btn-theme"
+                aria-pressed="false"
+                aria-label="Koyu temaya geç"
+                title="Tema"
+              >
+                Koyu
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
                 id="btn-refresh"
                 aria-label="Listeyi yenile"
                 title="Yenile"
@@ -264,7 +274,7 @@ export default function HomePage() {
       </dialog>
 
       <div id="toast" className="toast" role="status" aria-live="polite" hidden />
-      <Script src="/assets/app.js?v=8" strategy="afterInteractive" />
+      <Script src="/assets/app.js?v=9" strategy="afterInteractive" />
     </>
   );
 }

@@ -1,5 +1,37 @@
 import { NextResponse } from "next/server";
+import { runCheckIfStale } from "@/lib/auto-schedule";
+import { productDbStats } from "@/lib/db/products";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
+/** Public liveness probe; runs a price check when the last DB check is stale (≈28m). Safe for cron-job.org / uptime pings without CRON_SECRET. */
 export async function GET() {
-  return NextResponse.json({ ok: true });
+  const stale = await runCheckIfStale();
+  const db = await productDbStats();
+  let latest_check = db.count > 0 ? db.latestCheck : null;
+  if (stale.latest_check && (!latest_check || stale.latest_check > latest_check)) {
+    latest_check = stale.latest_check;
+  }
+  if (stale.status === "ran" && (stale.check_ok ?? 0) > 0) {
+    const nowIso = new Date().toISOString();
+    if (!latest_check || nowIso > latest_check) latest_check = nowIso;
+  }
+  const product_count = db.count;
+  return NextResponse.json({
+    ok: true,
+    stale_check: stale.status,
+    latest_check,
+    product_count,
+    ...(stale.status === "ran"
+      ? {
+          check_ok: stale.check_ok ?? 0,
+          check_failed: stale.check_failed ?? 0,
+          check_duration_ms: stale.check_duration_ms ?? 0,
+          prices_updated: (stale.check_ok ?? 0) > 0,
+        }
+      : {}),
+    deployment: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+  });
 }

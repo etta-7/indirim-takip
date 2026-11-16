@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from alert_rules import NO_ABSOLUTE_TARGET, normalize_alert_text, parse_percent_token, split_alert_args
 from db import Product, ProductRepository
 from scrapers.base import detect_site
+from scrapers.trendyol import resolve_product_url
 
 
 @dataclass
@@ -56,10 +57,22 @@ def resolve_targets(req: AddProductRequest) -> tuple[float, float | None] | str:
     return target, drop
 
 
-def add_product(repo: ProductRepository, req: AddProductRequest) -> Product | str:
-    url = req.url.strip()
-    if not url:
+DEFAULT_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+
+def add_product(
+    repo: ProductRepository,
+    req: AddProductRequest,
+    http_user_agent: str | None = None,
+) -> Product | str:
+    raw = req.url.strip()
+    if not raw:
         return "URL gerekli."
+    ua = http_user_agent or DEFAULT_UA
+    url = resolve_product_url(raw, ua)
     resolved = resolve_targets(req)
     if isinstance(resolved, str):
         return resolved

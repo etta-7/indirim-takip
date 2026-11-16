@@ -19,7 +19,9 @@ export function parseAkakce(html: string): PriceResult {
     if (el.length) price = parsePriceText(el.text());
   }
   if (price == null) {
-    const m = html.match(/lowPrice['\"]?\s*:\s*([\d.]+)/);
+    const m =
+      html.match(/minOfSortPrice['\"]?\s*:\s*\[0,([\d.]+)\]/) ??
+      html.match(/lowPrice['\"]?\s*:\s*([\d.]+)/);
     if (m) price = parseFloat(m[1]);
   }
   if (price == null) throw new Error("Akakçe fiyat bulunamadı");

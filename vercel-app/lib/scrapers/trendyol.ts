@@ -25,21 +25,25 @@ export function parseTrendyol(html: string): PriceResult {
     }
   }
   if (price == null) {
-    // Sayfaya gömülü ürün verisi: indirimli fiyat önce, yoksa satış fiyatı.
-    for (const re of [
-      /"discountedPrice"\s*:\s*\{\s*"value"\s*:\s*([\d.]+)/,
-      /"sellingPrice"\s*:\s*\{\s*"value"\s*:\s*([\d.]+)/,
+    const patterns = [
+      /"discountedPrice"\s*:\s*\{[^}]*"value"\s*:\s*([\d.]+)/,
+      /"sellingPrice"\s*:\s*\{[^}]*"value"\s*:\s*([\d.]+)/,
       /"sellingPrice"\s*:\s*([\d.]+)/,
-    ]) {
+      /"discountedPrice"\s*:\s*([\d.]+)/,
+    ];
+    for (const re of patterns) {
       const m = html.match(re);
-      if (m && parseFloat(m[1]) > 0) {
-        price = parseFloat(m[1]);
-        break;
+      if (m) {
+        const p = parseFloat(m[1]);
+        if (p > 0) {
+          price = p;
+          break;
+        }
       }
     }
   }
   if (price == null) {
-    // Teşhis için: gelen sayfanın başlığı ve boyutu (bot doğrulama sayfası mı?)
+    // Teşhis için: gelen sayfanın başlığı ve boyutu (bot doğrulama / ana sayfa mı?)
     const pageTitle = $("title").first().text().trim().slice(0, 80) || "başlıksız";
     throw new Error(`Trendyol fiyat bulunamadı (sayfa: "${pageTitle}", ${html.length} bayt)`);
   }

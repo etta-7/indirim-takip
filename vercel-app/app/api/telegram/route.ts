@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const stale = await runCheckIfStale();
-    if (stale === "ran") {
+    if (stale.status === "ran") {
       console.info("auto-schedule: price check completed (telegram)");
     }
     await handleTelegramUpdate(update as Parameters<typeof handleTelegramUpdate>[0]);

@@ -25,6 +25,42 @@ export async function listProducts(): Promise<Product[]> {
   return rows.map((r) => rowToProduct(r as Record<string, unknown>));
 }
 
+/** Fallback when pooled SELECT * sporadically returns zero rows while COUNT(*) > 0 on Neon. */
+export async function listProductsResilient(): Promise<Product[]> {
+  noStore(); // Sorgu sonuçları Next.js veri önbelleğine alınmasın.
+  const primary = await listProducts();
+  if (primary.length > 0) return primary;
+
+  const { rows: idRows } = await sql`SELECT id FROM products ORDER BY id`;
+  if (idRows.length > 0) {
+    const loaded: Product[] = [];
+    for (const row of idRows) {
+      const id = Number((row as { id: unknown }).id);
+      if (!Number.isFinite(id)) continue;
+      const p = await getProduct(id);
+      if (p) loaded.push(p);
+    }
+    if (loaded.length > 0) return loaded;
+  }
+
+  const { rows } = await sql`
+    SELECT
+      id,
+      url,
+      site,
+      title,
+      target_price,
+      last_price,
+      last_checked_at,
+      notify_cooldown_until,
+      target_drop_percent,
+      baseline_price
+    FROM products
+    ORDER BY id
+  `;
+  return rows.map((r) => rowToProduct(r as Record<string, unknown>));
+}
+
 export async function getProduct(id: number): Promise<Product | null> {
   noStore(); // Sorgu sonuçları Next.js veri önbelleğine alınmasın.
   const { rows } = await sql`SELECT * FROM products WHERE id = ${id}`;
@@ -68,11 +104,60 @@ export async function countProducts(): Promise<number> {
   return Number(rows[0]?.c ?? 0);
 }
 
+export type ProductDbStats = {
+  count: number;
+  latestCheck: string | null;
+  /** True when count > 0 and MAX(last_checked_at) is null or older than maxAgeMs (uses Postgres NOW()). */
+  checkStale: boolean;
+};
+
+const DEFAULT_STALE_MS = 28 * 60 * 1000;
+
+/** Same as SQL staleness predicate — for tests and docs. */
+export function isCheckStale(
+  count: number,
+  latestCheck: string | null,
+  maxAgeMs: number,
+  nowMs: number = Date.now()
+): boolean {
+  if (count <= 0) return false;
+  if (latestCheck == null) return true;
+  const t = new Date(latestCheck).getTime();
+  if (Number.isNaN(t)) return true;
+  return nowMs - t >= maxAgeMs;
+}
+
+/** Single-query count, latest check, and staleness (one snapshot — avoids mismatched health fields). */
+export async function productDbStats(
+  maxAgeMs = DEFAULT_STALE_MS
+): Promise<ProductDbStats> {
+  noStore(); // Sorgu sonuçları Next.js veri önbelleğine alınmasın.
+  const { rows: statsRows } = await sql`
+    SELECT COUNT(*)::int AS c, MAX(last_checked_at) AS t FROM products
+  `;
+  const row = statsRows[0] as Record<string, unknown> | undefined;
+  const count = Number(row?.c ?? 0);
+  const latestCheck = formatTimestamptz(row?.t);
+  return {
+    count,
+    latestCheck,
+    checkStale: isCheckStale(count, latestCheck, maxAgeMs),
+  };
+}
+
+function formatTimestamptz(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  const s = String(value);
+  const ms = new Date(s).getTime();
+  if (!Number.isNaN(ms)) return new Date(ms).toISOString();
+  return s;
+}
+
 export async function latestCheckTime(): Promise<string | null> {
   noStore(); // Sorgu sonuçları Next.js veri önbelleğine alınmasın.
   const { rows } = await sql`SELECT MAX(last_checked_at) AS t FROM products`;
-  const t = rows[0]?.t;
-  return t != null ? String(t) : null;
+  return formatTimestamptz(rows[0]?.t);
 }
 
 export async function updateAfterCheck(

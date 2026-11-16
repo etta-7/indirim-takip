@@ -1,6 +1,12 @@
 import * as cheerio from "cheerio";
 
-export type PriceResult = { title: string; price: number; currency: string };
+export type PriceResult = {
+  title: string;
+  price: number;
+  currency: string;
+  /** Where the quote came from (for UI warnings). */
+  priceSource?: string;
+};
 
 export function parsePriceText(text: string): number | null {
   const t = text.trim();

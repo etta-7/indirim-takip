@@ -216,12 +216,18 @@ formAdd.addEventListener("submit", async (ev) => {
   const body = { url };
   if (target_text) body.target_text = target_text;
   try {
-    await api("/api/products", {
+    const data = await api("/api/products", {
       method: "POST",
       body: JSON.stringify(body),
     });
     formAdd.reset();
-    showToast("Ürün eklendi.");
+    const priceNote =
+      data.last_price != null ? ` Güncel fiyat: ${data.last_price} TL.` : "";
+    showToast(
+      data.scrape_warning
+        ? `Ürün eklendi — ${data.scrape_warning}`
+        : `Ürün eklendi.${priceNote}`
+    );
     await loadProducts();
   } catch (e) {
     showToast(e.message || "Eklenemedi.");
