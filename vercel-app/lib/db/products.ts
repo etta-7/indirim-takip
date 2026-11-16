@@ -92,3 +92,30 @@ export async function updateAfterCheck(
     WHERE id = ${productId}
   `;
 }
+
+export async function updateProductTargets(
+  id: number,
+  data: {
+    target_price: number;
+    target_drop_percent: number | null;
+    reset_baseline?: boolean;
+  }
+): Promise<Product | null> {
+  // Hedef değişince eski bildirim beklemesini kaldır; yeni hedef hemen tetiklenebilsin.
+  const { rows } = await sql`
+    UPDATE products
+    SET
+      target_price = ${data.target_price},
+      target_drop_percent = ${data.target_drop_percent},
+      notify_cooldown_until = NULL,
+      baseline_price = CASE
+        WHEN ${data.reset_baseline ? true : false}::boolean AND last_price IS NOT NULL
+        THEN last_price
+        ELSE baseline_price
+      END
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  if (!rows.length) return null;
+  return rowToProduct(rows[0] as Record<string, unknown>);
+}

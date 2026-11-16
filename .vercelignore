@@ -1,0 +1,8 @@
+# Vercel yalnızca vercel-app/ klasörünü derler; geri kalanı (Python botu, sırlar, loglar) yüklenmesin.
+/*
+!/vercel-app
+/vercel-app/node_modules
+/vercel-app/.next
+/vercel-app/.env*
+!/vercel-app/.env.example
+/vercel-app/tsconfig.tsbuildinfo

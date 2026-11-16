@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireDashboardToken } from "@/lib/auth/dashboard";
-import { removeProduct } from "@/lib/db/products";
+import { removeProduct, updateProductTargets } from "@/lib/db/products";
+import { productToDict } from "@/lib/db/types";
+import { validateTargetUpdate, type UpdateTargetsRequest } from "@/lib/product-ops";
 
 export const dynamic = "force-dynamic";
 
@@ -20,4 +22,37 @@ export async function DELETE(
     return NextResponse.json({ detail: "Ürün bulunamadı." }, { status: 404 });
   }
   return NextResponse.json({ ok: true, id: pid });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!requireDashboardToken(req)) {
+    return NextResponse.json({ detail: "Geçersiz veya eksik panel anahtarı." }, { status: 401 });
+  }
+  const { id } = await params;
+  const pid = parseInt(id, 10);
+  if (Number.isNaN(pid)) {
+    return NextResponse.json({ detail: "Geçersiz id." }, { status: 400 });
+  }
+  let body: UpdateTargetsRequest;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ detail: "Geçersiz JSON." }, { status: 400 });
+  }
+  const v = validateTargetUpdate(body ?? {});
+  if (typeof v === "string") {
+    return NextResponse.json({ detail: v }, { status: 400 });
+  }
+  const updated = await updateProductTargets(pid, {
+    target_price: v.target,
+    target_drop_percent: v.drop,
+    reset_baseline: v.reset_baseline,
+  });
+  if (!updated) {
+    return NextResponse.json({ detail: "Ürün bulunamadı." }, { status: 404 });
+  }
+  return NextResponse.json(productToDict(updated));
 }
