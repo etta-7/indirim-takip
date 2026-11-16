@@ -1,4 +1,5 @@
 import { sql } from "@vercel/postgres";
+import { unstable_noStore as noStore } from "next/cache";
 import type { UserSession } from "./types";
 
 function rowToSession(row: Record<string, unknown> | undefined, userId: number): UserSession {
@@ -43,6 +44,7 @@ function rowToSession(row: Record<string, unknown> | undefined, userId: number):
 }
 
 export async function getSession(userId: number): Promise<UserSession> {
+  noStore(); // Sorgu sonuçları Next.js veri önbelleğine alınmasın.
   const { rows } = await sql`SELECT * FROM user_sessions WHERE user_id = ${userId}`;
   return rowToSession(rows[0] as Record<string, unknown> | undefined, userId);
 }
@@ -95,6 +97,7 @@ export async function setPendingProduct(
   awaitingPrice: boolean,
   targetDropPercent?: number | null
 ): Promise<void> {
+  noStore(); // Sorgu sonuçları Next.js veri önbelleğine alınmasın.
   const sess = await getSession(userId);
   sess.pending_url = url;
   sess.pending_title = title;
@@ -107,6 +110,7 @@ export async function setPendingProduct(
 }
 
 export async function clearAfterAdd(userId: number): Promise<void> {
+  noStore(); // Sorgu sonuçları Next.js veri önbelleğine alınmasın.
   const now = new Date().toISOString();
   await sql`
     UPDATE user_sessions SET

@@ -4,6 +4,9 @@ import { checkAllPrices, getLastRun } from "@/lib/price-checker";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+// GET rotasında veritabanı sorguları önbelleğe alınıyordu; cron hep boş liste görüyordu.
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization") ?? "";

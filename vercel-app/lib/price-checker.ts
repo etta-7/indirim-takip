@@ -111,6 +111,7 @@ async function checkProduct(product: Product, userAgent: string): Promise<void> 
 export async function checkAllPrices(): Promise<{ ok: number; failed: number }> {
   const userAgent = getHttpUserAgent();
   const products = await listProducts();
+  console.info(`Fiyat kontrolü: ${products.length} ürün`);
   let ok = 0;
   let failed = 0;
   for (const product of products) {

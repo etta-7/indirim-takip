@@ -19,115 +19,55 @@
   <body>
     <div id="app" class="app-shell" hidden>
       <header class="top-bar">
-        <div class="top-bar__titles">
+        <div class="top-bar__row">
           <h1 class="top-bar__title">İndirim Takip</h1>
-          <p class="top-bar__sub" id="summary-text" aria-live="polite">
-            Yükleniyor…
-          </p>
+          <div class="top-bar__actions">
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-refresh"
+              aria-label="Listeyi yenile"
+              title="Yenile"
+            >
+              <span class="btn__label">↻</span>
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-logout"
+              aria-label="Çıkış yap"
+              title="Çıkış yap"
+            >
+              Çıkış
+            </button>
+          </div>
         </div>
-        <button type="button" class="btn btn--primary btn--check" id="btn-check">
-          <span class="btn__label">Fiyatları şimdi kontrol et</span>
-        </button>
+        <p class="top-bar__sub">
+          <span id="summary-text" aria-live="polite">
+            Yükleniyor…
+          </span>
+        </p>
       </header>
 
-      <section class="panel panel--add" aria-labelledby="add-heading">
-        <h2 id="add-heading" class="panel__heading">
-          Yeni ürün ekle
-        </h2>
-        <p class="panel__intro">
-          Trendyol, Hepsiburada, Akakçe veya Cimri'den ürün linkini yapıştırın; fiyat
-          düştüğünde Telegram'dan haber verelim.
-        </p>
-        <form id="form-add" class="form-add" autocomplete="off" novalidate>
-          <label class="field">
-            <span class="field__label">1. Ürün linki</span>
-            <div class="field__row">
-              <input
-                class="field__input"
-                type="url"
-                name="url"
-                id="input-url"
-                inputmode="url"
-                placeholder="https://www.trendyol.com/…"
-                aria-describedby="url-hint"
-              />
-              <button type="button" class="btn btn--ghost btn--paste" id="btn-paste" hidden>
-                Yapıştır
-              </button>
-            </div>
-            <span class="field__hint" id="url-hint">
-              Ürün sayfasındaki adres çubuğunu kopyalayın.
-            </span>
-          </label>
+      <div class="actions-bar">
+        <button type="button" class="btn btn--primary" id="btn-open-add">
+          + Ürün ekle
+        </button>
+        <button type="button" class="btn btn--secondary" id="btn-check">
+          <span class="btn__label">Fiyatları kontrol et</span>
+        </button>
+      </div>
 
-          <fieldset class="field-group">
-            <legend class="field-group__legend">
-              2. Ne zaman haber verelim? <span class="muted">(en az birini doldurun)</span>
-            </legend>
-            <div class="field-group__grid">
-              <label class="field">
-                <span class="field__label">Fiyat şunun altına inince</span>
-                <div class="field__affix">
-                  <input
-                    class="field__input"
-                    type="text"
-                    name="target_price"
-                    id="input-target-price"
-                    inputmode="decimal"
-                    enterkeyhint="next"
-                    placeholder="2500"
-                    autocomplete="off"
-                  />
-                  <span class="field__suffix">TL</span>
-                </div>
-              </label>
-              <label class="field">
-                <span class="field__label">veya şu kadar düşünce</span>
-                <div class="field__affix">
-                  <span class="field__prefix">%</span>
-                  <input
-                    class="field__input field__input--prefixed"
-                    type="text"
-                    name="target_drop_percent"
-                    id="input-target-percent"
-                    inputmode="decimal"
-                    enterkeyhint="done"
-                    placeholder="10"
-                    autocomplete="off"
-                  />
-                </div>
-              </label>
-            </div>
-            <div class="chips" role="group" aria-label="Hızlı yüzde seçimi">
-              <button type="button" class="chip" data-percent="5">%5</button>
-              <button type="button" class="chip" data-percent="10">%10</button>
-              <button type="button" class="chip" data-percent="20">%20</button>
-              <button type="button" class="chip" data-percent="30">%30</button>
-            </div>
-            <p class="field__hint">
-              Yüzde, ürünün eklendiği andaki fiyata göre hesaplanır. İkisini birden
-              doldurursanız hangisi önce gerçekleşirse haber verilir.
-            </p>
-          </fieldset>
+      <nav class="tabs" role="tablist" aria-label="Görünüm">
+        <button type="button" role="tab" class="tab" data-tab="all" aria-selected="true">
+          Tümü <span class="tab__count" id="count-all"></span>
+        </button>
+        <button type="button" role="tab" class="tab" data-tab="drops" aria-selected="false">
+          Fiyatı düşenler <span class="tab__count tab__count--ok" id="count-drops"></span>
+        </button>
+      </nav>
 
-          <p class="form-error" id="add-error" role="alert" hidden></p>
-
-          <button type="submit" class="btn btn--primary btn--block" id="btn-add">
-            <span class="btn__label">Takibe al</span>
-          </button>
-        </form>
-      </section>
-
-      <section class="panel" aria-labelledby="list-heading">
-        <div class="panel__row">
-          <h2 id="list-heading" class="panel__heading">
-            Takip listesi <span class="count" id="list-count"></span>
-          </h2>
-          <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh">
-            Yenile
-          </button>
-        </div>
-
+      <section class="panel panel--list" id="view-products" role="tabpanel">
         <div class="list-tools" id="list-tools" hidden>
           <input
             class="field__input field__input--sm"
@@ -143,31 +83,115 @@
             <option value="name">Ada göre</option>
           </select>
         </div>
+        <p class="panel__intro" id="drops-intro" hidden>
+          Takibe aldığınız fiyata göre ucuzlayan ürünler; en çok düşen en üstte.
+        </p>
 
         <ul id="product-list" class="product-list" aria-live="polite"></ul>
 
         <div id="empty-state" class="empty-state" hidden>
           <p class="empty-state__title">Henüz takip ettiğiniz ürün yok</p>
-          <p>Yukarıya bir ürün linki yapıştırıp hedef fiyat girerek başlayın.</p>
+          <p>Bir ürün linki ekleyin, fiyatı düşünce Telegram'dan haber verelim.</p>
+          <button type="button" class="btn btn--primary btn--sm" data-open-add>
+            + İlk ürünü ekle
+          </button>
         </div>
+        <p id="drops-empty" class="empty-state" hidden>
+          Şimdilik fiyatı düşen ürün yok. Düşüş olunca burada görünecek.
+        </p>
         <p id="no-match" class="empty-state" hidden>
           Aramanızla eşleşen ürün yok.
         </p>
       </section>
 
-      <footer class="foot">
-        <button type="button" class="btn btn--link" id="btn-settings">
-          Panel anahtarını değiştir
-        </button>
-      </footer>
     </div>
+
+    <dialog id="dialog-add" class="dialog">
+      <form id="form-add" class="dialog__body" autocomplete="off" novalidate>
+        <h2 class="dialog__title">Ürün ekle</h2>
+        <label class="field">
+          <span class="field__label">Ürün linki</span>
+          <div class="field__row">
+            <input
+              class="field__input"
+              type="url"
+              name="url"
+              id="input-url"
+              inputmode="url"
+              placeholder="https://www.trendyol.com/…"
+              aria-describedby="url-hint"
+            />
+            <button type="button" class="btn btn--ghost btn--paste" id="btn-paste" hidden>
+              Yapıştır
+            </button>
+          </div>
+          <span class="field__hint" id="url-hint">
+            Trendyol, Hepsiburada, Akakçe veya Cimri linki.
+          </span>
+        </label>
+
+        <p class="field__label field__label--group">
+          Ne zaman haber verelim? <span class="muted">(en az biri)</span>
+        </p>
+        <div class="field-group__grid">
+          <label class="field">
+            <span class="field__hint">Fiyat şunun altına inince</span>
+            <div class="field__affix">
+              <input
+                class="field__input"
+                type="text"
+                name="target_price"
+                id="input-target-price"
+                inputmode="decimal"
+                enterkeyhint="next"
+                placeholder="2500"
+                autocomplete="off"
+              />
+              <span class="field__suffix">TL</span>
+            </div>
+          </label>
+          <label class="field">
+            <span class="field__hint">veya şu kadar düşünce</span>
+            <div class="field__affix">
+              <span class="field__prefix">%</span>
+              <input
+                class="field__input field__input--prefixed"
+                type="text"
+                name="target_drop_percent"
+                id="input-target-percent"
+                inputmode="decimal"
+                enterkeyhint="done"
+                placeholder="10"
+                autocomplete="off"
+              />
+            </div>
+          </label>
+        </div>
+        <div class="chips" role="group" aria-label="Hızlı yüzde seçimi">
+          <button type="button" class="chip" data-percent="5">%5</button>
+          <button type="button" class="chip" data-percent="10">%10</button>
+          <button type="button" class="chip" data-percent="20">%20</button>
+          <button type="button" class="chip" data-percent="30">%30</button>
+        </div>
+
+        <p class="form-error" id="add-error" role="alert" hidden></p>
+
+        <div class="dialog__actions">
+          <button type="button" class="btn btn--ghost" id="btn-add-cancel">
+            Vazgeç
+          </button>
+          <button type="submit" class="btn btn--primary" id="btn-add">
+            <span class="btn__label">Takibe al</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="dialog-token" class="dialog">
       <form method="dialog" id="form-token" class="dialog__body">
         <h2 class="dialog__title">Panele giriş</h2>
         <p class="dialog__text">
-          Kurulumda belirlediğiniz <code>DASHBOARD_TOKEN</code> değerini girin. Anahtar
-          yalnızca bu cihazda saklanır.
+          Size verilen panel anahtarını girin. Anahtar yalnızca bu cihazda saklanır.
         </p>
         <label class="field">
           <span class="field__label">Panel anahtarı</span>
@@ -254,6 +278,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <script src="/assets/app.js?v=5" defer></script>
+    <script src="/assets/app.js?v=8" defer></script>
   </body>
 </html>

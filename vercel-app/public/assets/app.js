@@ -8,7 +8,11 @@ const listEl = $("#product-list");
 const emptyEl = $("#empty-state");
 const noMatchEl = $("#no-match");
 const summaryEl = $("#summary-text");
-const countEl = $("#list-count");
+const dropsIntroEl = $("#drops-intro");
+const dropsEmptyEl = $("#drops-empty");
+const dialogAdd = $("#dialog-add");
+const TAB_KEY = "indirim_takip_tab";
+let activeTab = "all";
 const toolsEl = $("#list-tools");
 const filterEl = $("#input-filter");
 const sortEl = $("#select-sort");
@@ -122,6 +126,9 @@ function productStatus(p) {
   }
   const base = p.baseline_price;
   const dropNow = base > 0 ? ((base - last) / base) * 100 : null;
+  if (isStaleProduct(p)) {
+    return { kind: "stale", text: "Fiyat alınamıyor", score: 1e6, dropNow };
+  }
 
   const remaining = [];
   if (hasPriceTarget(p)) {
@@ -143,6 +150,13 @@ function productStatus(p) {
     score: left / last,
     dropNow,
   };
+}
+
+/** Son genel kontrolde bu ürünün fiyatı alınamadıysa (mağaza engeli vb.) true. */
+function isStaleProduct(p) {
+  if (!p.last_checked_at || !lastLatestCheck) return false;
+  const gap = new Date(lastLatestCheck).getTime() - new Date(p.last_checked_at).getTime();
+  return gap > 20 * 60 * 1000;
 }
 
 function targetLines(p) {
@@ -244,67 +258,106 @@ function sortProducts(list) {
   return copy;
 }
 
+/** İlk fiyata göre ucuzlama: { pct, amount } veya null. */
+function priceDrop(p) {
+  const base = p.baseline_price;
+  const last = p.last_price;
+  if (!(base > 0) || last == null || last >= base) return null;
+  const pct = ((base - last) / base) * 100;
+  if (pct < 0.1) return null;
+  return { pct, amount: base - last };
+}
+
+function shortTl(n) {
+  return `${Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 0 })} TL`;
+}
+
 function cardHtml(p) {
   const st = productStatus(p);
   const title = p.title || "Ürün adı ilk kontrolde alınacak";
-  const checked = relativeTime(p.last_checked_at) || "henüz yok";
+  const shortTitle = escapeHtml(title.slice(0, 60));
+  const drop = priceDrop(p);
   let change = "";
-  if (st.dropNow != null && Math.abs(st.dropNow) >= 0.1) {
-    change =
-      st.dropNow > 0
-        ? `<span class="delta delta--down">▼ ${formatPct(st.dropNow)}</span>`
-        : `<span class="delta delta--up">▲ ${formatPct(-st.dropNow)}</span>`;
+  if (drop) change = `<span class="delta delta--down">▼ ${formatPct(drop.pct)}</span>`;
+  else if (st.dropNow != null && st.dropNow <= -0.1) {
+    change = `<span class="delta delta--up">▲ ${formatPct(-st.dropNow)}</span>`;
   }
+  const meta = [];
+  if (drop) meta.push(`${shortTl(drop.amount)} ucuz`);
+  if (hasPriceTarget(p)) meta.push(`hedef ${shortTl(p.target_price)}`);
+  if (p.target_drop_percent != null) meta.push(`hedef ${formatPct(p.target_drop_percent)}`);
+  if (p.baseline_price != null) meta.push(`ilk ${shortTl(p.baseline_price)}`);
+  meta.push(relativeTime(p.last_checked_at) || "kontrol bekleniyor");
   return `
     <article class="card card--${st.kind}" data-id="${p.id}">
-      <div class="card__head">
-        <span class="badge badge--${escapeHtml(p.site)}">${escapeHtml(siteLabel(p.site))}</span>
-        <span class="card__checked" title="Son kontrol">${escapeHtml(checked)}</span>
+      <div class="card__top">
+        <span class="badge">${escapeHtml(siteLabel(p.site))}</span>
+        <h3 class="card__title" title="${escapeHtml(title)}">${escapeHtml(title.slice(0, 140))}</h3>
       </div>
-      <h3 class="card__title">${escapeHtml(title.slice(0, 140))}</h3>
       <div class="card__price">
         <span class="card__price-now">${formatTl(p.last_price)}</span>
         ${change}
-      </div>
-      <p class="status status--${st.kind}">${escapeHtml(st.text)}</p>
-      <dl class="card__meta">
-        <div><dt>Haber ver</dt><dd>${escapeHtml(targetLines(p))}</dd></div>
-        <div>
-          <dt title="Yüzde düşüş bu fiyata göre hesaplanır">İlk fiyat</dt>
-          <dd>${formatTl(p.baseline_price)}</dd>
+        <div class="card__actions">
+          <a class="icon-btn icon-btn--sm" href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer" title="Mağazada aç" aria-label="${shortTitle} mağazada aç">↗</a>
+          <button type="button" class="icon-btn icon-btn--sm" data-edit="${p.id}" title="Uyarıyı düzenle" aria-label="${shortTitle} uyarısını düzenle">✎</button>
+          <button type="button" class="icon-btn icon-btn--sm icon-btn--danger" data-remove="${p.id}" title="Sil" aria-label="${shortTitle} ürününü sil">✕</button>
         </div>
-      </dl>
-      <div class="card__actions">
-        <a class="btn btn--secondary" href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">Mağazada aç ↗</a>
-        <button type="button" class="btn btn--ghost" data-edit="${p.id}">Düzenle</button>
-        <button type="button" class="btn btn--danger" data-remove="${p.id}" aria-label="${escapeHtml(title.slice(0, 60))} ürününü sil">Sil</button>
+      </div>
+      <div class="card__bottom">
+        <span class="status status--${st.kind}">${escapeHtml(st.text)}</span>
+        <span class="card__meta">${escapeHtml(meta.join(" · "))}</span>
       </div>
     </article>`;
 }
 
 function renderProducts() {
+  const drops = products.filter((p) => priceDrop(p));
+  $("#count-all").textContent = products.length || "";
+  $("#count-drops").textContent = drops.length || "";
+
+  const inDrops = activeTab === "drops";
+  const base = inDrops ? drops : products;
   const q = filterEl.value.trim().toLocaleLowerCase("tr");
   const filtered = q
-    ? products.filter((p) =>
+    ? base.filter((p) =>
         `${p.title || ""} ${p.url} ${siteLabel(p.site)}`.toLocaleLowerCase("tr").includes(q)
       )
-    : products;
+    : base;
+  const sorted = inDrops
+    ? [...filtered].sort((a, b) => priceDrop(b).pct - priceDrop(a).pct)
+    : sortProducts(filtered);
 
-  listEl.innerHTML = sortProducts(filtered)
-    .map((p) => `<li>${cardHtml(p)}</li>`)
-    .join("");
+  listEl.innerHTML = sorted.map((p) => `<li>${cardHtml(p)}</li>`).join("");
 
   emptyEl.hidden = products.length > 0;
-  noMatchEl.hidden = !(products.length > 0 && filtered.length === 0);
-  toolsEl.hidden = products.length < 3;
-  countEl.textContent = products.length ? `(${products.length})` : "";
+  dropsIntroEl.hidden = !inDrops || drops.length === 0;
+  dropsEmptyEl.hidden = !(inDrops && products.length > 0 && drops.length === 0);
+  noMatchEl.hidden = !(base.length > 0 && filtered.length === 0);
+  toolsEl.hidden = products.length < 4;
+  sortEl.hidden = inDrops;
 }
+
+function setTab(tab) {
+  activeTab = tab;
+  safeSet(TAB_KEY, tab);
+  document.querySelectorAll(".tab").forEach((t) => {
+    const on = t.dataset.tab === tab;
+    t.classList.toggle("is-active", on);
+    t.setAttribute("aria-selected", String(on));
+  });
+  renderProducts();
+}
+
+document.querySelectorAll(".tab").forEach((t) =>
+  t.addEventListener("click", () => setTab(t.dataset.tab))
+);
+activeTab = safeGet(TAB_KEY) === "drops" ? "drops" : "all";
 
 function updateSummary() {
   if (!loadedOnce) return;
   const hits = products.filter((p) => productStatus(p).kind === "hit").length;
   const parts = [products.length ? `${products.length} ürün takipte` : "Liste boş"];
-  if (hits) parts.push(`${hits} ürün hedefte`);
+  if (hits) parts.push(`${hits} hedefte`);
   if (autoTickInFlight) parts.push("fiyatlar güncelleniyor…");
   else {
     const rel = relativeTime(lastLatestCheck);
@@ -355,8 +408,7 @@ async function maybeAutoPriceCheck() {
 async function runCheck() {
   const btn = $("#btn-check");
   if (!products.length) {
-    showToast("Önce listeye bir ürün ekleyin.", "info");
-    urlInput.focus();
+    openAddDialog();
     return;
   }
   setBusy(btn, true, "Kontrol ediliyor…");
@@ -366,7 +418,7 @@ async function runCheck() {
     await loadProducts();
     if (data.failed_count) {
       showToast(
-        `${data.ok_count} ürün güncellendi, ${data.failed_count} ürünün fiyatı okunamadı.`,
+        `${data.ok_count} ürün güncellendi, ${data.failed_count} ürünün fiyatı alınamadı (mağaza erişimi engelliyor olabilir).`,
         "warn",
         6000
       );
@@ -414,6 +466,7 @@ formToken.addEventListener("submit", async (ev) => {
     await loadProducts();
     closeTokenDialog();
     app.hidden = false;
+    setTab(activeTab);
     showToast("Giriş başarılı.", "success");
     maybeAutoPriceCheck();
   } catch (e) {
@@ -546,6 +599,7 @@ formAdd.addEventListener("submit", async (ev) => {
     formAdd.reset();
     updateUrlHint();
     showAddError("");
+    closeDialog(dialogAdd);
     await loadProducts();
     showToast("Ürün takibe alındı. Fiyatı bir sonraki kontrolde görünecek.", "success", 4500);
   } catch (e) {
@@ -674,7 +728,7 @@ sortEl.addEventListener("change", () => {
 $("#btn-check").addEventListener("click", runCheck);
 $("#btn-refresh").addEventListener("click", async (ev) => {
   const btn = ev.currentTarget;
-  setBusy(btn, true, "Yenileniyor…");
+  setBusy(btn, true, "");
   try {
     await loadProducts();
   } catch (e) {
@@ -683,12 +737,49 @@ $("#btn-refresh").addEventListener("click", async (ev) => {
     setBusy(btn, false);
   }
 });
-$("#btn-settings").addEventListener("click", () => openTokenDialog());
+/* ---------- Pencereler ---------- */
+
+function openDialog(d) {
+  if (d.open) return;
+  if (typeof d.showModal === "function") d.showModal();
+  else d.setAttribute("open", "");
+}
+
+function closeDialog(d) {
+  if (typeof d.close === "function") d.close();
+  else d.removeAttribute("open");
+}
+
+$("#btn-logout").addEventListener("click", () => {
+  if (!confirm("Bu cihazda çıkış yapılsın mı?")) return;
+  setToken("");
+  products = [];
+  loadedOnce = false;
+  listEl.innerHTML = "";
+  app.hidden = true;
+  openTokenDialog();
+});
+
+/* ---------- Ürün ekleme penceresi ---------- */
+
+function openAddDialog() {
+  showAddError("");
+  updateUrlHint();
+  openDialog(dialogAdd);
+  setTimeout(() => urlInput.focus(), 50);
+}
+
+$("#btn-open-add").addEventListener("click", openAddDialog);
+$("#btn-add-cancel").addEventListener("click", () => closeDialog(dialogAdd));
+document.addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-open-add]")) openAddDialog();
+});
 
 /* ---------- Boot ---------- */
 
 if (getToken()) {
   app.hidden = false;
+  setTab(activeTab);
   renderSkeleton();
   loadProducts()
     .then(() => maybeAutoPriceCheck())
@@ -711,7 +802,7 @@ setInterval(() => {
 }, 60_000);
 
 setInterval(() => {
-  if (document.hidden || !getToken() || dialogToken.open || dialogEdit.open) return;
+  if (document.hidden || !getToken() || document.querySelector("dialog[open]")) return;
   loadProducts().catch(() => {});
 }, 2 * 60_000);
 
