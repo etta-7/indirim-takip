@@ -15,148 +15,279 @@
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/assets/icon.svg" />
     <link rel="stylesheet" href="/assets/app.css" />
-    <script>
-      (function () {
-        try {
-          var k = "indirim_takip_theme";
-          var t = localStorage.getItem(k);
-          if (t !== "light" && t !== "dark") {
-            t = window.matchMedia("(prefers-color-scheme: dark)").matches
-              ? "dark"
-              : "light";
-          }
-          document.documentElement.setAttribute("data-theme", t);
-        } catch (e) {
-          document.documentElement.setAttribute("data-theme", "light");
-        }
-      })();
-    </script>
   </head>
   <body>
-    <div id="app" class="app-shell" hidden aria-live="polite">
+    <div id="app" class="app-shell" hidden>
       <header class="top-bar">
-        <div class="top-bar__titles">
+        <div class="top-bar__row">
           <h1 class="top-bar__title">İndirim Takip</h1>
-          <p class="top-bar__sub" id="summary-text">Yükleniyor…</p>
+          <div class="top-bar__actions">
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-theme"
+              aria-pressed="false"
+              aria-label="Koyu temaya geç"
+              title="Tema"
+            >
+              Koyu
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-refresh"
+              aria-label="Listeyi yenile"
+              title="Yenile"
+            >
+              <span class="btn__label">↻</span>
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              id="btn-logout"
+              aria-label="Çıkış yap"
+              title="Çıkış yap"
+            >
+              Çıkış
+            </button>
+          </div>
         </div>
-        <div class="top-bar__actions">
-          <button
-            type="button"
-            class="btn btn--ghost btn--sm btn--theme"
-            id="btn-theme"
-            aria-pressed="false"
-          >
-            Koyu
-          </button>
-          <button
-            type="button"
-            class="btn btn--primary btn--check"
-            id="btn-check"
-          >
-            Şimdi kontrol et
-          </button>
-        </div>
+        <p class="top-bar__sub">
+          <span id="summary-text" aria-live="polite">
+            Yükleniyor…
+          </span>
+        </p>
       </header>
 
-      <section class="panel panel--add" aria-labelledby="add-heading">
-        <h2 id="add-heading" class="panel__heading">Ürün ekle</h2>
-        <form id="form-add" class="form-add" autocomplete="off">
-          <label class="field">
-            <span class="field__label">Ürün linki</span>
+      <div class="actions-bar">
+        <button type="button" class="btn btn--primary" id="btn-open-add">
+          + Ürün ekle
+        </button>
+        <button type="button" class="btn btn--secondary" id="btn-check">
+          <span class="btn__label">Fiyatları kontrol et</span>
+        </button>
+      </div>
+
+      <nav class="tabs" role="tablist" aria-label="Görünüm">
+        <button type="button" role="tab" class="tab" data-tab="all" aria-selected="true">
+          Tümü <span class="tab__count" id="count-all"></span>
+        </button>
+        <button type="button" role="tab" class="tab" data-tab="drops" aria-selected="false">
+          Fiyatı düşenler <span class="tab__count tab__count--ok" id="count-drops"></span>
+        </button>
+      </nav>
+
+      <section class="panel panel--list" id="view-products" role="tabpanel">
+        <div class="list-tools" id="list-tools" hidden>
+          <input
+            class="field__input field__input--sm"
+            type="search"
+            id="input-filter"
+            placeholder="Listede ara…"
+            aria-label="Listede ara"
+          />
+          <select class="field__input field__input--sm" id="select-sort" aria-label="Sırala">
+            <option value="closest">Hedefe en yakın</option>
+            <option value="newest">En yeni</option>
+            <option value="cheapest">En ucuz</option>
+            <option value="name">Ada göre</option>
+          </select>
+        </div>
+        <p class="panel__intro" id="drops-intro" hidden>
+          Takibe aldığınız fiyata göre ucuzlayan ürünler; en çok düşen en üstte.
+        </p>
+
+        <ul id="product-list" class="product-list" aria-live="polite"></ul>
+
+        <div id="empty-state" class="empty-state" hidden>
+          <p class="empty-state__title">Henüz takip ettiğiniz ürün yok</p>
+          <p>Bir ürün linki ekleyin, fiyatı düşünce Telegram'dan haber verelim.</p>
+          <button type="button" class="btn btn--primary btn--sm" data-open-add>
+            + İlk ürünü ekle
+          </button>
+        </div>
+        <p id="drops-empty" class="empty-state" hidden>
+          Şimdilik fiyatı düşen ürün yok. Düşüş olunca burada görünecek.
+        </p>
+        <p id="no-match" class="empty-state" hidden>
+          Aramanızla eşleşen ürün yok.
+        </p>
+      </section>
+
+    </div>
+
+    <dialog id="dialog-add" class="dialog">
+      <form id="form-add" class="dialog__body" autocomplete="off" novalidate>
+        <h2 class="dialog__title">Ürün ekle</h2>
+        <label class="field">
+          <span class="field__label">Ürün linki</span>
+          <div class="field__row">
             <input
               class="field__input"
               type="url"
               name="url"
+              id="input-url"
               inputmode="url"
               placeholder="https://www.trendyol.com/…"
-              required
+              aria-describedby="url-hint"
             />
-          </label>
-          <fieldset class="field-group" aria-labelledby="alert-heading">
-            <legend id="alert-heading" class="field-group__legend">
-              Uyarı eşiği (en az biri)
-            </legend>
-            <label class="field">
-              <span class="field__label">Hedef fiyat (TL)</span>
+            <button type="button" class="btn btn--ghost btn--paste" id="btn-paste" hidden>
+              Yapıştır
+            </button>
+          </div>
+          <span class="field__hint" id="url-hint">
+            Trendyol, Hepsiburada, Akakçe veya Cimri linki.
+          </span>
+        </label>
+
+        <p class="field__label field__label--group">
+          Ne zaman haber verelim? <span class="muted">(en az biri)</span>
+        </p>
+        <div class="field-group__grid">
+          <label class="field">
+            <span class="field__hint">Fiyat şunun altına inince</span>
+            <div class="field__affix">
               <input
                 class="field__input"
                 type="text"
                 name="target_price"
+                id="input-target-price"
                 inputmode="decimal"
                 enterkeyhint="next"
-                placeholder="ör. 2500"
+                placeholder="2500"
                 autocomplete="off"
               />
-            </label>
-            <label class="field">
-              <span class="field__label">Yüzde düşüş (%)</span>
+              <span class="field__suffix">TL</span>
+            </div>
+          </label>
+          <label class="field">
+            <span class="field__hint">veya şu kadar düşünce</span>
+            <div class="field__affix">
+              <span class="field__prefix">%</span>
               <input
-                class="field__input"
+                class="field__input field__input--prefixed"
                 type="text"
                 name="target_drop_percent"
-                inputmode="numeric"
+                id="input-target-percent"
+                inputmode="decimal"
                 enterkeyhint="done"
-                placeholder="ör. 10"
+                placeholder="10"
                 autocomplete="off"
               />
-              <span class="field__hint">
-                Sadece yüzde, sadece TL veya ikisi birlikte — bot ile aynı mantık
-              </span>
-            </label>
-          </fieldset>
-          <button type="submit" class="btn btn--secondary btn--block">
-            Listeye ekle
-          </button>
-        </form>
-      </section>
-
-      <section class="panel" aria-labelledby="list-heading">
-        <div class="panel__row">
-          <h2 id="list-heading" class="panel__heading">Takip listesi</h2>
-          <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh">
-            Yenile
-          </button>
+            </div>
+          </label>
         </div>
-        <ul id="product-list" class="product-list"></ul>
-        <p id="empty-state" class="empty-state" hidden>
-          Henüz ürün yok. Yukarıdan bir link ekleyin.
-        </p>
-      </section>
+        <div class="chips" role="group" aria-label="Hızlı yüzde seçimi">
+          <button type="button" class="chip" data-percent="5">%5</button>
+          <button type="button" class="chip" data-percent="10">%10</button>
+          <button type="button" class="chip" data-percent="20">%20</button>
+          <button type="button" class="chip" data-percent="30">%30</button>
+        </div>
 
-      <footer class="foot">
-        <button type="button" class="btn btn--ghost btn--sm" id="btn-settings">
-          Panel anahtarı
-        </button>
-      </footer>
-    </div>
+        <p class="form-error" id="add-error" role="alert" hidden></p>
 
-    <dialog id="dialog-token" class="dialog">
-      <form method="dialog" id="form-token" class="dialog__body">
-        <h2 class="dialog__title">Panel anahtarı</h2>
-        <p class="dialog__text">
-          <code>DASHBOARD_TOKEN</code> değerini girin. Bu cihazda saklanır; yalnızca
-          sizin kullanımınız içindir.
-        </p>
-        <label class="field">
-          <span class="field__label">Anahtar</span>
-          <input
-            class="field__input"
-            type="password"
-            name="token"
-            id="input-token"
-            autocomplete="off"
-            required
-          />
-        </label>
         <div class="dialog__actions">
-          <button type="submit" class="btn btn--primary btn--block">
-            Kaydet ve devam et
+          <button type="button" class="btn btn--ghost" id="btn-add-cancel">
+            Vazgeç
+          </button>
+          <button type="submit" class="btn btn--primary" id="btn-add">
+            <span class="btn__label">Takibe al</span>
           </button>
         </div>
       </form>
     </dialog>
 
-    <div id="toast" class="toast" role="status" hidden></div>
-    <script src="/assets/app.js?v=5" defer></script>
+    <dialog id="dialog-token" class="dialog">
+      <form method="dialog" id="form-token" class="dialog__body">
+        <h2 class="dialog__title">Panele giriş</h2>
+        <p class="dialog__text">
+          Size verilen panel anahtarını girin. Anahtar yalnızca bu cihazda saklanır.
+        </p>
+        <label class="field">
+          <span class="field__label">Panel anahtarı</span>
+          <div class="field__row">
+            <input
+              class="field__input"
+              type="password"
+              name="token"
+              id="input-token"
+              autocomplete="current-password"
+              required
+            />
+            <button type="button" class="btn btn--ghost btn--paste" id="btn-token-toggle">
+              Göster
+            </button>
+          </div>
+        </label>
+        <p class="form-error" id="token-error" role="alert" hidden></p>
+        <div class="dialog__actions">
+          <button type="button" class="btn btn--ghost" id="btn-token-cancel" hidden>
+            Vazgeç
+          </button>
+          <button type="submit" class="btn btn--primary" id="btn-token-save">
+            <span class="btn__label">Giriş yap</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="dialog-edit" class="dialog">
+      <form method="dialog" id="form-edit" class="dialog__body" novalidate>
+        <h2 class="dialog__title">Uyarıyı düzenle</h2>
+        <p class="dialog__text" id="edit-product-name"></p>
+        <div class="field-group__grid">
+          <label class="field">
+            <span class="field__label">Fiyat şunun altına inince</span>
+            <div class="field__affix">
+              <input
+                class="field__input"
+                type="text"
+                id="edit-target-price"
+                inputmode="decimal"
+                placeholder="boş = yok"
+                autocomplete="off"
+              />
+              <span class="field__suffix">TL</span>
+            </div>
+          </label>
+          <label class="field">
+            <span class="field__label">veya şu kadar düşünce</span>
+            <div class="field__affix">
+              <span class="field__prefix">%</span>
+              <input
+                class="field__input field__input--prefixed"
+                type="text"
+                id="edit-target-percent"
+                inputmode="decimal"
+                placeholder="boş = yok"
+                autocomplete="off"
+              />
+            </div>
+          </label>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="edit-reset-baseline" />
+          <span>
+            Yüzdeyi şu anki fiyattan hesapla 
+            <span class="muted" id="edit-current-price"></span>
+          </span>
+        </label>
+        <p class="field__hint">
+          Bir alanı boş bırakırsanız o uyarı kaldırılır. En az biri dolu olmalı.
+        </p>
+        <p class="form-error" id="edit-error" role="alert" hidden></p>
+        <div class="dialog__actions">
+          <button type="button" class="btn btn--ghost" id="btn-edit-cancel">
+            Vazgeç
+          </button>
+          <button type="submit" class="btn btn--primary" id="btn-edit-save">
+            <span class="btn__label">Kaydet</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script src="/assets/app.js?v=9" defer></script>
   </body>
 </html>

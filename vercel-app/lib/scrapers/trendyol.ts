@@ -42,6 +42,10 @@ export function parseTrendyol(html: string): PriceResult {
       }
     }
   }
-  if (price == null) throw new Error("Trendyol fiyat bulunamadı");
+  if (price == null) {
+    // Teşhis için: gelen sayfanın başlığı ve boyutu (bot doğrulama / ana sayfa mı?)
+    const pageTitle = $("title").first().text().trim().slice(0, 80) || "başlıksız";
+    throw new Error(`Trendyol fiyat bulunamadı (sayfa: "${pageTitle}", ${html.length} bayt)`);
+  }
   return { title, price, currency: "TRY" };
 }

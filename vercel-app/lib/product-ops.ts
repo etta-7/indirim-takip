@@ -118,3 +118,31 @@ export async function addProductFromRequest(
     };
   }
 }
+
+export type UpdateTargetsRequest = {
+  target_price?: number | null;
+  target_drop_percent?: number | null;
+  reset_baseline?: boolean;
+};
+
+/** Panelden gelen hedef güncellemesini doğrular; null = o eşiği kaldır. */
+export function validateTargetUpdate(
+  req: UpdateTargetsRequest
+): { target: number; drop: number | null; reset_baseline: boolean } | string {
+  const price = req.target_price ?? null;
+  const drop = req.target_drop_percent ?? null;
+  if (price != null && (typeof price !== "number" || !Number.isFinite(price) || price <= 0)) {
+    return "Hedef fiyat pozitif bir sayı olmalı.";
+  }
+  if (drop != null && (typeof drop !== "number" || !Number.isFinite(drop) || drop <= 0 || drop >= 100)) {
+    return "Yüzde 1 ile 99 arasında olmalı.";
+  }
+  if (price == null && drop == null) {
+    return "En az bir uyarı eşiği gerekli (TL hedefi veya yüzde).";
+  }
+  return {
+    target: price ?? NO_ABSOLUTE_TARGET,
+    drop,
+    reset_baseline: req.reset_baseline === true,
+  };
+}
